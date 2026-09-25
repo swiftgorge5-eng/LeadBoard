@@ -128,13 +128,26 @@ export interface RepositorySyncResult {
 业务模块不得各自创建 GitHub HTTP Client。
 
 ```ts
+export interface GitHubRepositoryRef {
+  githubId: string;
+  nodeId: string;
+  owner: string;
+  name: string;
+  fullName: string;
+  defaultBranch: string;
+  htmlUrl: string;
+  archived: boolean;
+  isFork: boolean;
+  isPrivate: boolean;
+}
+
 export interface GitHubClient {
-  listOrgRepositories(org: string): Promise<unknown[]>;
+  listOrgRepositories(org: string): Promise<GitHubRepositoryRef[]>;
 
   getRepositoryCustomProperties(
     owner: string,
     repo: string
-  ): Promise<Record<string, string | null>>;
+  ): Promise<Record<string, unknown>>;
 
   requestRest<T>(
     method: "GET" | "POST" | "PATCH",
@@ -369,7 +382,7 @@ export interface GroupSummary {
   name: string;
 }
 
-export interface OrganizationSummary {
+export interface OrganizationActivitySummary {
   range: TimeRange;
   repositories: number;
   contributors: number;
@@ -377,8 +390,6 @@ export interface OrganizationSummary {
   prs: number;
   issues: number;
   total: number;
-  lastUpdatedAt: string | null;
-  dataStatus: "fresh" | "stale" | "missing";
 }
 
 export interface RepositoryStat {
@@ -429,9 +440,9 @@ Service：
 ```ts
 getGroups(): Promise<GroupSummary[]>;
 
-getOrganizationSummary(
+getOrganizationActivitySummary(
   range: TimeRange
-): Promise<OrganizationSummary>;
+): Promise<OrganizationActivitySummary>;
 
 getRepositoryStats(
   range: TimeRange,
