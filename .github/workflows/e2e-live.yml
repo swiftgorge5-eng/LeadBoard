@@ -1,0 +1,71 @@
+name: Live E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: "本次 Live E2E 的说明（可选）"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: leadboard-live-e2e
+  cancel-in-progress: false
+
+jobs:
+  live-e2e:
+    name: Real GitHub smoke test
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      GITHUB_TOKEN: ${{ secrets.LEADBOARD_E2E_GITHUB_TOKEN }}
+      GITHUB_ORG: ${{ secrets.LEADBOARD_E2E_GITHUB_ORG }}
+      DATABASE_URL: postgresql://leadboard:leadboard@localhost:5432/leadboard
+      LEADBOARD_GROUP_PROPERTY: leadboard_group
+      PORT: "3000"
+      INITIAL_SYNC_DAYS: "30"
+      SYNC_OVERLAP_MINUTES: "10"
+      DATA_STALE_AFTER_HOURS: "12"
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: leadboard
+          POSTGRES_PASSWORD: leadboard
+          POSTGRES_DB: leadboard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U leadboard -d leadboard"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: Preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$GITHUB_TOKEN" ]] || { echo "::error::Missing LEADBOARD_E2E_GITHUB_TOKEN"; exit 1; }
+          [[ -n "$GITHUB_ORG" ]] || { echo "::error::Missing LEADBOARD_E2E_GITHUB_ORG"; exit 1; }
+          [[ -f package.json ]] || { echo "::error::Project is not bootstrapped yet"; exit 1; }
+          node -e "const p=require('./package.json'); if(!p.scripts?.['test:e2e:live']){console.error('Missing root npm script: test:e2e:live');process.exit(1)}"
+
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: npm run test:e2e:live
+
+      - name: Safety reminder
+        if: always()
+        run: |
+          echo "Live E2E logs must not contain GitHub tokens."
+          echo "Store human-readable evidence in the linked #18 PR/Issue without secrets."
