@@ -6,48 +6,164 @@ LeadBoard 是一个面向开源社区的 **GitHub 开源活动统计与贡献排
 
 当前处在 Phase 1 阶段。#2 工程底座已实现（按 PR 流程验收）；其余业务模块欢迎认领 Issue。
 
-## 本地启动（#2 Bootstrap）
+## 在自己的电脑上运行 LeadBoard
 
-需要 Node.js 24 LTS、npm 11+ 和 Docker Compose v2。
+“本地启动”就是让网站在你自己的电脑上运行，再用浏览器打开它。
 
-```bash
+**目前能看到建设中的首页和“后端服务已连接”提示。贡献排行榜和 GitHub 数据采集还在开发中，没有榜单数据是正常的。**
+
+### 第一步：准备软件（第一次运行时需要）
+
+- **Node.js 24.x**：运行这个项目所需的软件。安装时保留默认选项，同时安装 npm。npm 是用来下载项目依赖和运行命令的工具，本项目要求版本 11 或以上。
+- **VS Code**：用来打开项目文件、修改配置和输入命令。也可以使用你熟悉的编辑器。
+- **Docker Desktop（需要数据库时安装）**：帮你运行 PostgreSQL 数据库。**目前只查看首页和服务连接状态，可以先跳过数据库。** 后续开发数据库相关功能时再安装并启动它，需要支持 Docker Compose v2。
+
+安装完 Node.js 后，重新打开 VS Code，点击顶部菜单 **“终端” → “新建终端”**。终端就是输入下面这些命令的窗口。每次复制一条命令，按回车，等它执行完再输入下一条：
+
+```text
+node -v
+npm -v
+```
+
+第一条应显示 `v24.x.x`，第二条应显示 `11.x.x` 或更高版本。
+
+### 第二步：下载并打开项目
+
+如果电脑上已经有 LeadBoard，直接用 VS Code 打开它所在的文件夹。
+
+如果还没有：
+
+1. 在本仓库页面点击绿色 **Code** 按钮，再点击 **Download ZIP**。
+2. 解压下载的文件。
+3. 在 VS Code 中点击 **“文件” → “打开文件夹”**，选择解压后的项目文件夹（通常叫 `LeadBoard-main`）。
+4. 确认左侧能直接看到 `package.json`、`backend`、`frontend` 和 `.env.example`。
+
+如果你已经安装 Git，也可以在准备存放项目的位置打开终端，依次运行：
+
+```text
+git clone https://github.com/swiftgorge5-eng/LeadBoard.git
+cd LeadBoard
+```
+
+**下面的命令都在项目最外层文件夹中运行，也就是有 `package.json` 的那一层。** 用 VS Code 打开这个文件夹后，再选择“终端 → 新建终端”即可。
+
+### 第三步：安装项目需要的依赖
+
+在终端输入：
+
+```text
 npm install
-cp .env.example .env
-# 编辑 .env，填写 GITHUB_TOKEN 与 GITHUB_ORG。
-docker compose up -d --wait postgres
+```
+
+这一步会从网上下载项目需要的代码包，第一次可能需要几分钟。等命令执行结束、终端重新允许输入后再继续。如果出现报错，先处理报错，不要直接往下执行。
+
+### 第四步：填写配置文件
+
+1. 在 VS Code 左侧找到 `.env.example`，复制一份放在同一个文件夹。
+2. 把复制出来的文件重命名为 **`.env`**，注意开头有一个点，末尾没有 `.txt`。
+3. 打开 `.env`，把最上面的两行改成下面这样，其他内容先保留原样，然后保存：
+
+```dotenv
+GITHUB_TOKEN=local-placeholder
+GITHUB_ORG=local-org
+```
+
+这两个值只是让你现在能启动页面的临时占位内容，**不是真实的 GitHub 授权信息，也不会采集数据**。当前程序启动时会检查配置是否填写，但还不会连接 GitHub 或数据库。
+
+后续接入真实采集功能时，`GITHUB_TOKEN` 要换成有效的 GitHub 访问令牌，`GITHUB_ORG` 要换成要统计的 GitHub 组织名称。`.env` 只保存在自己电脑上，不要提交到仓库或把真实令牌发给别人。
+
+### 第五步：启动网站
+
+在同一个终端输入：
+
+```text
 npm run dev
 ```
 
-- 前端：`http://localhost:5173`；后端：`http://localhost:3000/health`。
-- `npm run dev` 同时监听 contracts、Backend、Frontend 的修改。
-- Vite 将 `/health` 和 `/api` 代理到 Backend，读取根 `.env` 的 `PORT`；Token 不进入前端 bundle。
-- 当前页面只展示建设进度和真实健康检查，贡献榜单由 #16/#17 接续实现。
-- Bootstrap 启动不连接 GitHub/数据库，但遵守配置契约：缺少必填项或配置无效立即失败，错误只列字段名。
-- 离线试跑可填写非真实占位值 `GITHUB_TOKEN=local-placeholder`、`GITHUB_ORG=local-org`；后续真实采集时必须换为有效配置。
-- Compose 的 `leadboard` 用户/密码仅用于本地开发，与 `.env.example` 一致；仅绑定 `127.0.0.1:5432`。生产环境应另行配置凭据。
+这条命令会一起启动网页和给网页提供数据的后端服务。**保持这个终端打开**；它一直显示运行日志、没有回到输入提示符，是正常现象。之后修改代码并保存，开发服务会自动更新。
 
-```bash
-# CI / 干净安装
+打开浏览器，在地址栏输入：
+
+**http://localhost:5173**
+
+看到 LeadBoard 首页，并且页面显示 **“后端服务已连接”**，说明当前已实现的基础部分启动成功。
+
+也可以打开 http://localhost:3000/health 检查后端。这里显示的是服务状态数据，不是网站页面；它也不代表 GitHub 采集或数据库功能已经完成。
+
+### 怎么停止？下次怎么打开？
+
+- **停止网站**：回到运行 `npm run dev` 的终端，按 `Ctrl + C`。
+- **下次启动**：用 VS Code 打开同一个项目文件夹，打开终端，再运行 `npm run dev`。不用重新复制 `.env`。
+- **更新代码后**：如果项目新增或更改了依赖，再运行一次 `npm install`。
+
+### 需要数据库时，再做这一步
+
+先打开 Docker Desktop，等它启动完成，再在项目文件夹的终端运行：
+
+```text
+docker compose up -d --wait postgres
+```
+
+这条命令会下载并启动 PostgreSQL，等数据库准备好后结束。数据库会继续在后台运行。第一次需要联网下载，耗时可能较长。
+
+项目已提供本地开发用的数据库名称、用户名和密码，都是 `leadboard`，与 `.env.example` 中的 `DATABASE_URL` 一致，首次使用不用修改。它只允许从本机连接，端口是 `5432`。这些默认账号信息只用于本地开发，正式部署时需要另行设置。
+
+暂时不用数据库时，在项目文件夹中运行：
+
+```text
+docker compose down
+```
+
+这会停止数据库并保留数据。**不要随意加 `-v`，它会删除本地数据库数据。**
+
+目前 `db/migrations` 只是预留目录，数据库表和建表步骤由 #3 任务实现；启动数据库不等于已经完成业务数据初始化。
+
+### 启动失败时，先看这里
+
+| 遇到的情况 | 怎么处理 |
+|---|---|
+| 提示找不到 `node` 或 `npm` | 检查 Node.js 是否安装完成，关闭并重新打开 VS Code，再试版本检查命令。 |
+| Windows 提示“无法加载 npm.ps1，因为禁止运行脚本” | 在 VS Code 终端右上角的下拉菜单选择 **Command Prompt（命令提示符）**，新建终端后重新输入命令。 |
+| 提示找不到 `package.json` | 当前打开的文件夹不对。重新打开能直接看到 `package.json` 的项目文件夹，再新建终端。 |
+| 提示 `GITHUB_TOKEN` 或 `GITHUB_ORG` 配置有问题 | 检查项目最外层的 `.env` 是否存在，两项是否按第四步填写并保存，然后重新启动。 |
+| 提示 `EADDRINUSE` 或端口已被占用 | 检查是否已经在另一个终端启动了项目，先用 `Ctrl + C` 停止之前的服务再重试。默认网页端口是 5173，后端端口是 3000。 |
+| 首页显示“暂未连接后端” | 查看运行 `npm run dev` 的终端是否有后端报错，确认 `.env` 配置正确；修复后重新启动并刷新网页。 |
+| Docker 提示无法连接或数据库启动失败 | 确认 Docker Desktop 已运行；如果提示 5432 被占用，检查电脑上是否已有数据库在运行。只看当前首页时可以先跳过数据库。 |
+
+如果仍然失败，请提供**执行的命令和完整报错**，不要只说“启动不了”。截图或复制日志前，检查是否包含真实令牌、密码。
+
+### 开发者补充：检查代码和预览编译结果
+
+下面这些不是首次打开页面的必做步骤，提交代码前或检查编译结果时再使用。
+
+在项目最外层依次运行：
+
+```text
 npm ci
 npm run typecheck
 npm test
 npm run build
-
-# 编译后的 Backend（读取根 .env）
-npm start
-# 编译后的 Frontend 本地预览（另一终端）
-npm run preview --workspace=@leadboard/frontend
-
-# 停止数据库，保留数据卷
-# 注意：加 -v 会删除本地数据卷。
-docker compose down
 ```
 
-根脚本会先构建 contracts，再验证消费它的 workspace。单独开发后端/前端可使用
-`npm run dev:backend` / `npm run dev:frontend`。如果直接运行 workspace 命令，先执行
-`npm run build --workspace=@leadboard/contracts`。
+分别表示：按锁定版本重新安装依赖、检查 TypeScript 类型、运行自动化测试、编译项目。`npm ci` 会重建依赖目录，适合需要干净安装时使用。
 
-`db/migrations/.gitkeep` 仅保留目录；真实 schema/migration 属于 #3。
+编译成功后，可以停止之前的开发服务，再用两个终端分别运行：
+
+```text
+npm start
+```
+
+上面启动编译后的后端；另一个终端运行：
+
+```text
+npm run preview --workspace=@leadboard/frontend
+```
+
+上面预览编译后的网页，浏览器打开终端中显示的地址。后端仍然读取项目最外层的 `.env`。
+
+只开发某一部分时，可以使用 `npm run dev:backend` 或 `npm run dev:frontend`；只启动前端时，页面的服务连接检查仍需要后端运行。根目录的开发、类型检查和测试命令会先编译共享接口包。若直接运行子项目命令，需要先执行 `npm run build --workspace=@leadboard/contracts`。
+
+网页发出的 `/health` 和 `/api` 请求会由 Vite 转发到后端，后端端口读取根目录 `.env` 的 `PORT`（默认 3000）。GitHub 令牌不提供给网页。
 
 
 > **Phase 1 — 闭环**
