@@ -1,0 +1,118 @@
+name: PR Policy
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  pr-metadata:
+    name: PR metadata and linked issue
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const body = context.payload.pull_request.body || "";
+
+            const requiredHeadings = [
+              "## 关联 Issue",
+              "## 本 PR 实现的接口",
+              "## 本 PR 使用的接口",
+              "## 改动内容",
+              "## 接口 / 数据库变化",
+              "## 验收证据",
+              "## 验证",
+              "## Reviewer Checklist",
+            ];
+
+            const missing = requiredHeadings.filter((h) => !body.includes(h));
+            if (missing.length > 0) {
+              core.setFailed(`PR 描述缺少必填章节：${missing.join(", ")}`);
+              return;
+            }
+
+            const closing = body.match(/\b(?:Closes|Fixes|Resolves)\s+#(\d+)\b/i);
+            if (!closing) {
+              core.setFailed("PR 必须使用 Closes #<issue-number>（或 Fixes / Resolves）关联一个 Issue。");
+              return;
+            }
+
+            const issueNumber = Number(closing[1]);
+            const { owner, repo } = context.repo;
+
+            let issue;
+            try {
+              const response = await github.rest.issues.get({
+                owner,
+                repo,
+                issue_number: issueNumber,
+              });
+              issue = response.data;
+            } catch (error) {
+              core.setFailed(`无法读取关联 Issue #${issueNumber}: ${error.message}`);
+              return;
+            }
+
+            if (issue.pull_request) {
+              core.setFailed(`#${issueNumber} 不是 Issue。`);
+              return;
+            }
+
+            if (issue.state !== "open") {
+              core.setFailed(`关联 Issue #${issueNumber} 当前不是 open 状态。`);
+              return;
+            }
+
+            const issueBody = issue.body || "";
+            const issueMarkers = [
+              "认领前必读：接口与开发语言",
+              "本 Issue 必须实现",
+              "本 Issue 必须使用",
+            ];
+
+            const missingIssueMarkers = issueMarkers.filter((m) => !issueBody.includes(m));
+            if (missingIssueMarkers.length > 0) {
+              core.setFailed(
+                `关联 Issue #${issueNumber} 缺少接口契约头部：${missingIssueMarkers.join(", ")}`
+              );
+              return;
+            }
+
+            const stripComments = (text) => text.replace(/<!--[\s\S]*?-->/g, "").trim();
+
+            function sectionText(heading) {
+              const start = body.indexOf(heading);
+              if (start < 0) return "";
+              const from = start + heading.length;
+              const next = body.indexOf("\n## ", from);
+              return stripComments(body.slice(from, next < 0 ? body.length : next));
+            }
+
+            for (const heading of [
+              "## 本 PR 实现的接口",
+              "## 本 PR 使用的接口",
+              "## 改动内容",
+              "## 验收证据",
+            ]) {
+              if (!sectionText(heading)) {
+                core.setFailed(`${heading} 不能为空。`);
+                return;
+              }
+            }
+
+            if (!/-\s*\[[xX]\]/.test(body)) {
+              core.setFailed("PR 至少需要勾选一项已完成的验证/验收项。");
+              return;
+            }
+
+            core.info(`PR metadata OK. Linked issue: #${issueNumber}`);
