@@ -28,7 +28,13 @@ jobs:
               return;
             }
 
-            const body = context.payload.pull_request.body || "";
+            const pr = context.payload.pull_request;
+            if (pr.base.ref !== "main") {
+              core.setFailed(`PR base branch must be main, got: ${pr.base.ref}`);
+              return;
+            }
+
+            const body = pr.body || "";
 
             const requiredHeadings = [
               "## 关联 Issue",
@@ -76,6 +82,15 @@ jobs:
 
             if (issue.state !== "open") {
               core.setFailed(`关联 Issue #${issueNumber} 当前不是 open 状态。`);
+              return;
+            }
+
+            const prAuthor = pr.user?.login;
+            const assignees = (issue.assignees || []).map((u) => u.login);
+            if (prAuthor !== owner && !assignees.includes(prAuthor)) {
+              core.setFailed(
+                `PR 作者 ${prAuthor} 尚未被 Assign 到关联 Issue #${issueNumber}。请先完成认领/Assign。`
+              );
               return;
             }
 
