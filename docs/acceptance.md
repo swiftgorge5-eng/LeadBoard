@@ -168,6 +168,10 @@ Integration Test 至少覆盖：
 
 ## 8. Pipeline Gate
 
+跨模块测试的标准数据集见 [test-fixtures.md](test-fixtures.md)。#8 / #14 / #18 应优先复用该语义 fixture，并冻结 `REFERENCE_NOW`，避免各模块各写一套无法对账的数据。
+
+
+
 当 `backend/src/analytics/` 出现后，必须提供 `test:pipeline`。
 
 使用固定 fixture：
