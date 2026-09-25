@@ -574,7 +574,50 @@ DATA_STALE_AFTER_HOURS=12
 
 ---
 
-## 15. 当前进度
+## 15. CI 与验收
+
+所有 PR 都必须经过自动化与人工两层验收。
+
+统一验收规范：
+
+- [docs/acceptance.md](docs/acceptance.md)
+- [docs/repository-rules.md](docs/repository-rules.md)
+
+仓库当前包含：
+
+```text
+.github/workflows/ci.yml
+→ Secret / Build / Contract / DB / Integration / Pipeline / E2E Gates
+
+.github/workflows/pr-policy.yml
+→ 检查 PR 是否关联合格 Issue，以及接口/验收信息是否填写完整
+
+.github/workflows/e2e-live.yml
+→ Maintainer 手动执行真实 GitHub E2E
+
+.github/CODEOWNERS
+→ 关键文件维护者 Review
+```
+
+最终 Merge 条件：
+
+```text
+PR Policy PASS
++
+CI Acceptance Gate PASS
++
+Issue Acceptance Criteria 完成
++
+Maintainer Review 通过
++
+Review threads resolved
+```
+
+当对应模块尚未实现时，CI 中相关 Job 会显示 skipped；一旦该模块目录出现，对应验收会自动启用。
+
+---
+
+## 16. 当前进度
 
 - [x] Phase 1 范围确定
 - [x] 技术栈确定
@@ -604,7 +647,7 @@ DATA_STALE_AFTER_HOURS=12
 
 ---
 
-## 16. Phase 1 不做
+## 17. Phase 1 不做
 
 Phase 1 明确不包含：
 
@@ -622,7 +665,7 @@ Phase 1 明确不包含：
 
 ---
 
-## 17. 如何参与
+## 18. 如何参与
 
 统一流程：
 
@@ -662,7 +705,7 @@ Closes #<issue-number>
 
 ---
 
-## 18. Phase 1 Definition of Done
+## 19. Phase 1 Definition of Done
 
 给定：
 
