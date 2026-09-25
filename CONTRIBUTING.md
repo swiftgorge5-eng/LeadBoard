@@ -74,3 +74,28 @@ chore: ...
 ## 7. Issue 粒度
 
 Phase 1 的开发 Issue 原则上控制在 **2–5 小时**，每个 Issue 只交付一个明确产物。若任务明显超过半天，应先拆分。
+
+
+## 8. Shared Contracts
+
+任何跨模块字段变化都必须先修改：
+
+1. `docs/api-contract.md`
+2. `packages/contracts`
+3. 对应 contract test
+
+然后再修改 Backend / Frontend 实现。
+
+PR Review 时，如果发现某个模块重新定义了 `TrackedRepository`、`GitHubActivity`、API response type 等共享结构，应要求改为从 `@leadboard/contracts` 导入。
+
+## 9. Integration Checks
+
+涉及跨模块的 PR，至少说明它通过了哪一个 Integration Gate：
+
+- Contracts
+- Database
+- Pipeline
+- API Contract
+- E2E
+
+不要通过“前端临时适配字段”或“Ingestion 临时补 GitHub 数据”来掩盖接口不一致。
