@@ -524,3 +524,17 @@ LEADBOARD_E2E_GITHUB_ORG
 Token 只授予测试 Organization / 测试仓库所需的最小只读权限。
 
 Live E2E 不使用开发者个人 Token。
+
+
+## 16. Dependabot PR 例外
+
+自动生成的 `dependabot[bot]` PR 不要求创建独立开发 Issue，也不要求填写人工接口元数据，因此 PR Policy 对 Dependabot 跳过 linked-Issue 检查。
+
+但 Dependabot **不跳过 CI**：
+
+- Secret Scan
+- build / typecheck / tests
+- Contract / Database / Integration / Pipeline / E2E（如适用）
+- Maintainer Review
+
+依赖升级如果导致任何 Acceptance Gate 失败，不得直接 Merge。
