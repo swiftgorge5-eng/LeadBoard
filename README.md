@@ -413,9 +413,9 @@ group = group name
 │   └── #5 Repository Sync
 │       ├── #6 Commit Collector
 │       └── #7 PR / Issue Collector
-│           └── #8 Ingestion
-│               └── #13 Sync
 │
+#3 + #5 + #6 + #7 ─────► #8 Ingestion
+#5 + #6 + #7 + #8 ─────► #13 Sync
 #3 + #8 ────────────────► #14 Analytics
 #13 + #14 ──────────────► #15 REST API
 
