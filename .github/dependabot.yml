@@ -1,17 +1,7 @@
 version: 2
 
 updates:
-  - package-ecosystem: "npm"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    groups:
-      npm-minor-patch:
-        update-types:
-          - "minor"
-          - "patch"
-
+  # npm updates are enabled by #2 Bootstrap once root package.json/package-lock.json exist.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
