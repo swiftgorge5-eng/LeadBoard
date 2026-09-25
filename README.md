@@ -1,14 +1,14 @@
 # LeadBoard
 
-LeadBoard 是一个面向高校开源社区的 **GitHub 开源活动统计与贡献排行榜平台**。
+LeadBoard 是一个面向开源社区的 **GitHub 开源活动统计与贡献排行榜平台**。
 
 项目目标是把一组明确纳入统计范围的开源仓库，转换成透明、可追溯、可重复计算的仓库活动数据与贡献者排行榜。
 
-当前只做：
+当前处在phase1阶段，欢迎认领issue。
 
-> **Phase 1 — MVP 数据闭环**
+> **Phase 1 — 闭环**
 
-Phase 1 先把最基础的一条链路做稳：
+Phase 1 需要完成的任务如下：
 
 ```text
 GitHub Organization
@@ -37,7 +37,7 @@ React Dashboard
 
 ---
 
-## 1. Phase 1 要解决什么
+## 1. Phase 1 的行为：
 
 给定一个 GitHub Organization 和访问 Token，LeadBoard 应当能够：
 
@@ -51,13 +51,8 @@ React Dashboard
 8. 通过 REST API 输出稳定的数据结构；
 9. 在 React Dashboard 展示 Contributor Leaderboard、Repository Activity 与同步新鲜度。
 
-Phase 1 **不做加权积分**：
 
-```text
-total = commits + prs + issues
-```
-
-后续如果加入评分系统，也必须建立在原始事实之上，不覆盖历史数据。
+后续加入评分系统，也会建立在原始事实之上，并入历史数据。
 
 ---
 
@@ -136,9 +131,9 @@ LeadBoard/
 
 ## 5. 最重要的开发原则：Contract First
 
-多人并行开发时，模块之间不能靠“大家大概知道字段是什么”。
+多人并行开发时，我们需要共享接口文档。
 
-LeadBoard 的共享接口只有一份：
+LeadBoard 的共享接口说明：
 
 ```text
 docs/api-contract.md
@@ -148,26 +143,21 @@ packages/contracts
 Backend / Frontend import
 ```
 
-所有跨模块共享类型最终必须来自：
+所有跨模块共享类型来自：
 
 ```text
 @leadboard/contracts
 ```
 
-禁止：
+禁止如下行为：
 
 - Collector 自己定义一份 Activity；
 - Ingestion 再定义另一份 Activity；
 - Frontend 手抄后端 Response Type；
 - API 临时增加文档中不存在的字段；
-- 某个 Issue 为了方便偷偷改共享字段。
+- 某个 Issue 为了方便改共享字段。
 
-任何接口变化都必须先更新：
-
-1. `docs/api-contract.md`
-2. `packages/contracts`
-3. contract test
-4. 受影响实现
+任何接口变化需要提前拉讨论。
 
 ---
 
@@ -387,6 +377,7 @@ group = group name
 ## 11. 当前正式开发任务
 
 每个 Issue 原则上控制在 **2–5 小时**，并明确输入、输出、依赖和验收标准。
+鼓励AI，更鼓励大家自己熟悉一遍流程。未来无论加入什么团队， 通过GitHub协作的能力是必要的。
 
 | Issue | 模块 | 任务 | 依赖 |
 |---|---|---|---|
@@ -430,7 +421,7 @@ group = group name
 
 ---
 
-## 12. 推荐并行开发顺序
+## 12. 并行开发顺序
 
 ### Wave 1
 
