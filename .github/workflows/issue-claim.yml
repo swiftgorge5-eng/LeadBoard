@@ -1,0 +1,104 @@
+name: Issue Claim Bot
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  claim:
+    if: github.event.issue.pull_request == null
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Handle claim commands
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = (context.payload.comment.body || '').trim();
+            const issue = context.payload.issue;
+            const commenter = context.payload.comment.user.login;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = issue.number;
+
+            const claimCommands = ['认领', '/claim'];
+            const unclaimCommands = ['取消认领', '/unclaim'];
+
+            if (!claimCommands.includes(body) && !unclaimCommands.includes(body)) {
+              core.info('Not a claim command; ignoring.');
+              return;
+            }
+
+            const { data: current } = await github.rest.issues.get({ owner, repo, issue_number });
+            const assignees = (current.assignees || []).map(a => a.login);
+
+            if (claimCommands.includes(body)) {
+              if (assignees.includes(commenter)) {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number,
+                  body: '@' + commenter + ' 你已经认领了这个 Issue。'
+                });
+                return;
+              }
+
+              if (assignees.length > 0) {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number,
+                  body: '这个 Issue 已被 ' + assignees.map(a => '@' + a).join(', ') + ' 认领。如需转交，请先取消原认领。'
+                });
+                return;
+              }
+
+              try {
+                await github.rest.issues.addAssignees({ owner, repo, issue_number, assignees: [commenter] });
+              } catch (error) {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number,
+                  body: '@' + commenter + ' 我收到了认领请求，但 GitHub 不允许把你设为 Assignee。请先成为仓库 Collaborator，或让 Maintainer 手动分配。'
+                });
+                core.setFailed(error.message);
+                return;
+              }
+
+              try {
+                await github.rest.issues.addLabels({ owner, repo, issue_number, labels: ['in-progress'] });
+              } catch (error) {
+                core.warning('Could not add in-progress label: ' + error.message);
+              }
+
+              await github.rest.issues.createComment({
+                owner, repo, issue_number,
+                body: '✅ @' + commenter + ' 已成功认领此 Issue。完成后请提交 PR，并在 PR 描述中写 `Closes #' + issue_number + '`。'
+              });
+              return;
+            }
+
+            if (unclaimCommands.includes(body)) {
+              if (!assignees.includes(commenter)) {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number,
+                  body: '@' + commenter + ' 你当前不是这个 Issue 的 Assignee，无需取消认领。'
+                });
+                return;
+              }
+
+              await github.rest.issues.removeAssignees({ owner, repo, issue_number, assignees: [commenter] });
+
+              try {
+                const { data: refreshed } = await github.rest.issues.get({ owner, repo, issue_number });
+                if ((refreshed.assignees || []).length === 0) {
+                  await github.rest.issues.removeLabel({ owner, repo, issue_number, name: 'in-progress' });
+                }
+              } catch (error) {
+                core.warning('Could not remove in-progress label: ' + error.message);
+              }
+
+              await github.rest.issues.createComment({
+                owner, repo, issue_number,
+                body: '↩️ @' + commenter + ' 已取消认领，此 Issue 现在可以被其他人认领。'
+              });
+            }
