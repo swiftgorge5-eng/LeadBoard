@@ -22,6 +22,12 @@ jobs:
       - uses: actions/github-script@v9
         with:
           script: |
+            const actor = context.actor;
+            if (actor === "dependabot[bot]") {
+              core.info("Dependabot PR: linked Issue/interface metadata policy is skipped; CI still applies.");
+              return;
+            }
+
             const body = context.payload.pull_request.body || "";
 
             const requiredHeadings = [
