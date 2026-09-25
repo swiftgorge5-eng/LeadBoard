@@ -486,11 +486,30 @@ total   = commits + prs + issues
 { "status": "ok" }
 ```
 
+共享健康检查类型：
+
+```ts
+export interface HealthResponse {
+  status: "ok";
+}
+```
+
 ### Organization Summary
 
 `GET /api/v1/organization/summary?range=30d`
 
-返回 `OrganizationSummary`。
+返回 `OrganizationSummary`。按照 #15 的组合规则：
+
+```ts
+export interface OrganizationSummary extends OrganizationActivitySummary {
+  lastUpdatedAt: string | null;
+  dataStatus: SyncStatus["dataStatus"];
+}
+```
+
+API 直接复用 Analytics 的活动字段；`lastUpdatedAt` 来自
+`SyncStatus.lastSuccessfulRunAt`，`dataStatus` 来自 `SyncStatus.dataStatus`。
+API 不重新计算统计数字或新鲜度。
 
 ### Repository Stats
 
@@ -573,3 +592,15 @@ INTERNAL_ERROR
 5. 再修改 Backend / Frontend 实现。
 
 未经以上步骤，不接受“本模块先自定义一个字段”的 PR。
+
+## 13. Bootstrap schema exports
+
+`@leadboard/contracts` 的数据结构同时导出同名 TypeScript type 与
+`<TypeName>Schema`（如 `GitHubActivitySchema`）。类型均由 Zod 推导。
+`GitHubClient` 是含泛型方法的 TypeScript interface；它不是 JSON DTO。
+
+Schema 校验 numeric ID 为十进制字符串、时间为 UTC `Z` 结尾的 ISO 时间、
+计数为非负安全整数、序号/端口为正整数，并校验时间窗口先后顺序。
+未知对象字段按 Zod 默认行为移除。Schema 不执行 IO、采集、排名或 freshness 计算。
+`AppConfigSchema` 验证解析后的配置；Backend `loadConfig` 负责 env 映射、
+默认值和 cron 校验，错误信息只输出字段名，不回显配置值。

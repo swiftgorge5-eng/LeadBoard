@@ -220,6 +220,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: docker compose -f docker-compose.yml config --quiet
+      - name: Start PostgreSQL and verify SQL connection
+        run: |
+          docker compose up -d --wait --wait-timeout 120 postgres
+          docker compose exec -T postgres psql -U leadboard -d leadboard -v ON_ERROR_STOP=1 -c 'SELECT 1 AS bootstrap_ready;'
+      - name: Clean up PostgreSQL
+        if: always()
+        run: docker compose down -v
 
   db-migration:
     name: Database migration

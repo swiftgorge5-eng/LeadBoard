@@ -1,0 +1,30 @@
+{
+  "name": "leadboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11"
+  },
+  "workspaces": [
+    "packages/contracts",
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run build --workspace=@leadboard/contracts && npm run typecheck --workspaces",
+    "test": "npm run build --workspace=@leadboard/contracts && npm test --workspaces",
+    "dev": "npm run build --workspace=@leadboard/contracts && concurrently -k -n contracts,backend,frontend \"npm run dev -w @leadboard/contracts\" \"npm run dev -w @leadboard/backend\" \"npm run dev -w @leadboard/frontend\"",
+    "start": "npm start --workspace=@leadboard/backend",
+    "dev:backend": "npm run build -w @leadboard/contracts && npm run dev -w @leadboard/backend",
+    "dev:frontend": "npm run build -w @leadboard/contracts && npm run dev -w @leadboard/frontend"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.1",
+    "concurrently": "^9.2.1",
+    "@types/node": "^24.0.0"
+  }
+}

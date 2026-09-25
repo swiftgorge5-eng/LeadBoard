@@ -4,7 +4,51 @@ LeadBoard 是一个面向开源社区的 **GitHub 开源活动统计与贡献排
 
 项目目标是把一组明确纳入统计范围的开源仓库，转换成透明、可追溯、可重复计算的仓库活动数据与贡献者排行榜。
 
-当前处在phase1阶段，欢迎认领issue。
+当前处在 Phase 1 阶段。#2 工程底座已实现（按 PR 流程验收）；其余业务模块欢迎认领 Issue。
+
+## 本地启动（#2 Bootstrap）
+
+需要 Node.js 24 LTS、npm 11+ 和 Docker Compose v2。
+
+```bash
+npm install
+cp .env.example .env
+# 编辑 .env，填写 GITHUB_TOKEN 与 GITHUB_ORG。
+docker compose up -d --wait postgres
+npm run dev
+```
+
+- 前端：`http://localhost:5173`；后端：`http://localhost:3000/health`。
+- `npm run dev` 同时监听 contracts、Backend、Frontend 的修改。
+- Vite 将 `/health` 和 `/api` 代理到 Backend，读取根 `.env` 的 `PORT`；Token 不进入前端 bundle。
+- 当前页面只展示建设进度和真实健康检查，贡献榜单由 #16/#17 接续实现。
+- Bootstrap 启动不连接 GitHub/数据库，但遵守配置契约：缺少必填项或配置无效立即失败，错误只列字段名。
+- 离线试跑可填写非真实占位值 `GITHUB_TOKEN=local-placeholder`、`GITHUB_ORG=local-org`；后续真实采集时必须换为有效配置。
+- Compose 的 `leadboard` 用户/密码仅用于本地开发，与 `.env.example` 一致；仅绑定 `127.0.0.1:5432`。生产环境应另行配置凭据。
+
+```bash
+# CI / 干净安装
+npm ci
+npm run typecheck
+npm test
+npm run build
+
+# 编译后的 Backend（读取根 .env）
+npm start
+# 编译后的 Frontend 本地预览（另一终端）
+npm run preview --workspace=@leadboard/frontend
+
+# 停止数据库，保留数据卷
+# 注意：加 -v 会删除本地数据卷。
+docker compose down
+```
+
+根脚本会先构建 contracts，再验证消费它的 workspace。单独开发后端/前端可使用
+`npm run dev:backend` / `npm run dev:frontend`。如果直接运行 workspace 命令，先执行
+`npm run build --workspace=@leadboard/contracts`。
+
+`db/migrations/.gitkeep` 仅保留目录；真实 schema/migration 属于 #3。
+
 
 > **Phase 1 — 闭环**
 
@@ -623,7 +667,7 @@ Review threads resolved
 - [x] REST API Contract 定义
 - [x] GitHub Issue / PR 协作规范
 - [x] 第一批 Phase 1 Issues
-- [ ] #2 Bootstrap
+- [x] #2 Bootstrap（工程实现；合并以 PR 验收和 Review 为准）
 - [ ] #3 Database
 - [ ] #4 GitHub Client
 - [ ] #5 Repository Sync
