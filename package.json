@@ -19,7 +19,11 @@
     "dev": "npm run build --workspace=@leadboard/contracts && concurrently -k -n contracts,backend,frontend \"npm run dev -w @leadboard/contracts\" \"npm run dev -w @leadboard/backend\" \"npm run dev -w @leadboard/frontend\"",
     "start": "npm start --workspace=@leadboard/backend",
     "dev:backend": "npm run build -w @leadboard/contracts && npm run dev -w @leadboard/backend",
-    "dev:frontend": "npm run build -w @leadboard/contracts && npm run dev -w @leadboard/frontend"
+    "dev:frontend": "npm run build -w @leadboard/contracts && npm run dev -w @leadboard/frontend",
+    "check:integration": "node scripts/check-integration.mjs",
+    "check:phase1": "node scripts/check-integration.mjs --complete",
+    "test:tooling": "node --test scripts/test/*.test.mjs",
+    "test:bootstrap": "node scripts/bootstrap-smoke.mjs"
   },
   "devDependencies": {
     "typescript": "~5.9.3",

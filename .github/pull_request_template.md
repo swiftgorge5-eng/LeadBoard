@@ -4,7 +4,7 @@ Closes #
 
 ## 本 PR 实现的接口
 
-<!-- 必须与关联 Issue 顶部“本 Issue 必须实现的接口”一致。列出函数 / 类型 / HTTP Endpoint / 页面。 -->
+<!-- 必须与关联 Issue 顶部“本 Issue 要实现的接口”一致。列出函数 / 类型 / HTTP Endpoint / 页面。 -->
 
 -
 

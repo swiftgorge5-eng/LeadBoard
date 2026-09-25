@@ -26,6 +26,7 @@ jobs:
       has_ingestion: ${{ steps.flags.outputs.has_ingestion }}
       has_analytics: ${{ steps.flags.outputs.has_analytics }}
       has_e2e: ${{ steps.flags.outputs.has_e2e }}
+      has_sync: ${{ steps.flags.outputs.has_sync }}
     steps:
       - uses: actions/checkout@v7
       - id: flags
@@ -47,6 +48,7 @@ jobs:
           echo "has_compose=$(flag_file docker-compose.yml)" >> "$GITHUB_OUTPUT"
           echo "has_ingestion=$(flag_dir backend/src/ingestion)" >> "$GITHUB_OUTPUT"
           echo "has_analytics=$(flag_dir backend/src/analytics)" >> "$GITHUB_OUTPUT"
+          echo "has_sync=$(flag_dir backend/src/sync)" >> "$GITHUB_OUTPUT"
 
           if [[ -d db/migrations ]] && find db/migrations -type f ! -name '.gitkeep' -print -quit | grep -q .; then
             echo "has_migrations=true" >> "$GITHUB_OUTPUT"
@@ -165,9 +167,14 @@ jobs:
           }
           NODE
       - run: npm ci
+      - run: npm run check:integration
+      - run: npm run test:tooling
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Bootstrap process smoke (before business runtime is introduced)
+        if: needs.detect.outputs.has_sync != 'true'
+        run: npm run test:bootstrap
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 
@@ -256,6 +263,7 @@ jobs:
         with:
           node-version: "24"
       - run: npm ci
+      - run: npm run build --workspace=@leadboard/contracts
       - name: Require database scripts
         run: |
           node <<'NODE'
@@ -300,6 +308,7 @@ jobs:
         with:
           node-version: "24"
       - run: npm ci
+      - run: npm run build --workspace=@leadboard/contracts
       - name: Require integration script
         run: |
           node -e "const p=require('./package.json'); if(!p.scripts?.['test:integration']){console.error('Missing root npm script: test:integration');process.exit(1)}"
@@ -334,6 +343,7 @@ jobs:
         with:
           node-version: "24"
       - run: npm ci
+      - run: npm run build --workspace=@leadboard/contracts
       - name: Require pipeline script
         run: |
           node -e "const p=require('./package.json'); if(!p.scripts?.['test:pipeline']){console.error('Missing root npm script: test:pipeline');process.exit(1)}"
@@ -347,6 +357,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI: "true"
+      GITHUB_TOKEN: mock-only
+      GITHUB_ORG: leadboard-fixture
+      TZ: UTC
       DATABASE_URL: postgresql://leadboard:leadboard@localhost:5432/leadboard
     services:
       postgres:
@@ -368,6 +381,7 @@ jobs:
         with:
           node-version: "24"
       - run: npm ci
+      - run: npm run build
       - name: Require E2E script
         run: |
           node -e "const p=require('./package.json'); if(!p.scripts?.['test:e2e']){console.error('Missing root npm script: test:e2e');process.exit(1)}"

@@ -701,6 +701,8 @@ DATA_STALE_AFTER_HOURS=12
 
 ## 15. CI 与验收
 
+全仓库接入检查结果见 [集成审查记录](docs/integration-audit.md)。**当前 CI 通过仅表示已有阶段通过；完整榜单仍需业务模块和端到端验收。** `npm run check:integration` 检查当前阶段依赖；`npm run check:phase1` 检查所有阶段是否齐全，目前业务未完成时应报出缺项。
+
 所有 PR 都必须经过自动化与人工两层验收。
 
 统一验收规范：
