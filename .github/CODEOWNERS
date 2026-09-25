@@ -1,0 +1,10 @@
+# LeadBoard Phase 1 code ownership
+* @swiftgorge5-eng
+
+# Contract / schema / CI changes always need maintainer attention
+/packages/contracts/ @swiftgorge5-eng
+/docs/api-contract.md @swiftgorge5-eng
+/docs/data-model.md @swiftgorge5-eng
+/docs/acceptance.md @swiftgorge5-eng
+/db/migrations/ @swiftgorge5-eng
+/.github/ @swiftgorge5-eng
