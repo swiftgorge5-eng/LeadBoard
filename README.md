@@ -572,6 +572,7 @@ DATA_STALE_AFTER_HOURS=12
 统一验收规范：
 
 - [docs/acceptance.md](docs/acceptance.md)
+- [docs/test-fixtures.md](docs/test-fixtures.md) — 跨模块统一测试数据与预期结果
 - [docs/repository-rules.md](docs/repository-rules.md)
 
 仓库当前包含：
