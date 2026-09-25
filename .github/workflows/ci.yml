@@ -1,0 +1,396 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect:
+    name: Detect project capabilities
+    runs-on: ubuntu-latest
+    outputs:
+      has_node: ${{ steps.flags.outputs.has_node }}
+      has_contracts: ${{ steps.flags.outputs.has_contracts }}
+      has_compose: ${{ steps.flags.outputs.has_compose }}
+      has_migrations: ${{ steps.flags.outputs.has_migrations }}
+      has_ingestion: ${{ steps.flags.outputs.has_ingestion }}
+      has_analytics: ${{ steps.flags.outputs.has_analytics }}
+      has_e2e: ${{ steps.flags.outputs.has_e2e }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: flags
+        name: Detect files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          flag_file() {
+            if [[ -f "$1" ]]; then echo true; else echo false; fi
+          }
+
+          flag_dir() {
+            if [[ -d "$1" ]]; then echo true; else echo false; fi
+          }
+
+          echo "has_node=$(flag_file package.json)" >> "$GITHUB_OUTPUT"
+          echo "has_contracts=$(flag_file packages/contracts/package.json)" >> "$GITHUB_OUTPUT"
+          echo "has_compose=$(flag_file docker-compose.yml)" >> "$GITHUB_OUTPUT"
+          echo "has_ingestion=$(flag_dir backend/src/ingestion)" >> "$GITHUB_OUTPUT"
+          echo "has_analytics=$(flag_dir backend/src/analytics)" >> "$GITHUB_OUTPUT"
+
+          if [[ -d db/migrations ]] && find db/migrations -type f ! -name '.gitkeep' -print -quit | grep -q .; then
+            echo "has_migrations=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_migrations=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [[ -d tests/e2e ]]; then
+            echo "has_e2e=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_e2e=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  repository-policy:
+    name: Repository policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate repository policy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required=(
+            README.md
+            CONTRIBUTING.md
+            .env.example
+            docs/architecture.md
+            docs/api-contract.md
+            docs/data-model.md
+            docs/acceptance.md
+            .github/pull_request_template.md
+            .github/ISSUE_TEMPLATE/task.md
+          )
+
+          for path in "${required[@]}"; do
+            [[ -f "$path" ]] || { echo "::error::Missing required file: $path"; exit 1; }
+          done
+
+          if git ls-files | grep -E '(^|/)node_modules/|(^|/)dist/|(^|/)coverage/' >/dev/null; then
+            echo "::error::Generated dependency/build artifacts are tracked."
+            exit 1
+          fi
+
+          bad_env="$(git ls-files | grep -E '(^|/)\.env($|\.)' | grep -vE '(^|/)\.env\.example$' || true)"
+          if [[ -n "$bad_env" ]]; then
+            echo "::error::Real .env-like files must not be tracked:"
+            echo "$bad_env"
+            exit 1
+          fi
+
+          grep -q '@leadboard/contracts' README.md
+          grep -q 'source of truth' docs/api-contract.md
+          grep -q 'Integration Gates' README.md
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  node-quality:
+    name: Node quality
+    needs: detect
+    if: needs.detect.outputs.has_node == 'true'
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: Require lockfile and root scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -f package-lock.json ]] || { echo "::error::package-lock.json is required"; exit 1; }
+          node <<'NODE'
+          const p = require('./package.json');
+          for (const name of ['typecheck', 'test', 'build']) {
+            if (!p.scripts?.[name]) {
+              console.error(`Missing root npm script: ${name}`);
+              process.exit(1);
+            }
+          }
+          NODE
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  contracts:
+    name: Shared contracts
+    needs: detect
+    if: needs.detect.outputs.has_contracts == 'true'
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - run: npm ci
+      - name: Validate contracts package
+        run: |
+          node <<'NODE'
+          const p = require('./packages/contracts/package.json');
+          if (p.name !== '@leadboard/contracts') {
+            console.error('packages/contracts package name must be @leadboard/contracts');
+            process.exit(1);
+          }
+          for (const name of ['typecheck', 'test', 'build']) {
+            if (!p.scripts?.[name]) {
+              console.error(`Missing @leadboard/contracts script: ${name}`);
+              process.exit(1);
+            }
+          }
+          NODE
+      - run: npm run typecheck --workspace=@leadboard/contracts
+      - run: npm test --workspace=@leadboard/contracts
+      - run: npm run build --workspace=@leadboard/contracts
+
+  docker-compose:
+    name: Docker Compose config
+    needs: detect
+    if: needs.detect.outputs.has_compose == 'true'
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: test-token
+      GITHUB_ORG: test-org
+      DATABASE_URL: postgresql://leadboard:leadboard@localhost:5432/leadboard
+      PORT: "3000"
+      INGESTION_CRON_SCHEDULE: "0 */6 * * *"
+      INITIAL_SYNC_DAYS: "30"
+      SYNC_OVERLAP_MINUTES: "10"
+      DATA_STALE_AFTER_HOURS: "12"
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker compose -f docker-compose.yml config --quiet
+
+  db-migration:
+    name: Database migration
+    needs: detect
+    if: needs.detect.outputs.has_node == 'true' && needs.detect.outputs.has_migrations == 'true'
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      DATABASE_URL: postgresql://leadboard:leadboard@localhost:5432/leadboard
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: leadboard
+          POSTGRES_PASSWORD: leadboard
+          POSTGRES_DB: leadboard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U leadboard -d leadboard"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - run: npm ci
+      - name: Require database scripts
+        run: |
+          node <<'NODE'
+          const p = require('./package.json');
+          for (const name of ['db:migrate', 'db:verify']) {
+            if (!p.scripts?.[name]) {
+              console.error(`Missing root npm script: ${name}`);
+              process.exit(1);
+            }
+          }
+          NODE
+      - run: npm run db:migrate
+      - name: Migration must be safely repeatable
+        run: npm run db:migrate
+      - run: npm run db:verify
+
+  integration:
+    name: Database integration
+    needs: detect
+    if: needs.detect.outputs.has_node == 'true' && needs.detect.outputs.has_ingestion == 'true'
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      DATABASE_URL: postgresql://leadboard:leadboard@localhost:5432/leadboard
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: leadboard
+          POSTGRES_PASSWORD: leadboard
+          POSTGRES_DB: leadboard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U leadboard -d leadboard"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - run: npm ci
+      - name: Require integration script
+        run: |
+          node -e "const p=require('./package.json'); if(!p.scripts?.['test:integration']){console.error('Missing root npm script: test:integration');process.exit(1)}"
+      - run: npm run db:migrate
+      - run: npm run test:integration
+
+  pipeline:
+    name: Pipeline fixture
+    needs: detect
+    if: needs.detect.outputs.has_node == 'true' && needs.detect.outputs.has_analytics == 'true'
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      DATABASE_URL: postgresql://leadboard:leadboard@localhost:5432/leadboard
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: leadboard
+          POSTGRES_PASSWORD: leadboard
+          POSTGRES_DB: leadboard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U leadboard -d leadboard"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - run: npm ci
+      - name: Require pipeline script
+        run: |
+          node -e "const p=require('./package.json'); if(!p.scripts?.['test:pipeline']){console.error('Missing root npm script: test:pipeline');process.exit(1)}"
+      - run: npm run db:migrate
+      - run: npm run test:pipeline
+
+  e2e-mocked:
+    name: Mock E2E
+    needs: detect
+    if: needs.detect.outputs.has_node == 'true' && needs.detect.outputs.has_e2e == 'true'
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      DATABASE_URL: postgresql://leadboard:leadboard@localhost:5432/leadboard
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: leadboard
+          POSTGRES_PASSWORD: leadboard
+          POSTGRES_DB: leadboard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U leadboard -d leadboard"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - run: npm ci
+      - name: Require E2E script
+        run: |
+          node -e "const p=require('./package.json'); if(!p.scripts?.['test:e2e']){console.error('Missing root npm script: test:e2e');process.exit(1)}"
+      - run: npm run db:migrate
+      - run: npm run test:e2e
+
+  final-gate:
+    name: Acceptance gate
+    if: always()
+    needs:
+      - detect
+      - repository-policy
+      - secret-scan
+      - node-quality
+      - contracts
+      - docker-compose
+      - db-migration
+      - integration
+      - pipeline
+      - e2e-mocked
+    runs-on: ubuntu-latest
+    env:
+      DETECT: ${{ needs.detect.result }}
+      REPOSITORY_POLICY: ${{ needs.repository-policy.result }}
+      SECRET_SCAN: ${{ needs.secret-scan.result }}
+      NODE_QUALITY: ${{ needs.node-quality.result }}
+      CONTRACTS: ${{ needs.contracts.result }}
+      DOCKER_COMPOSE: ${{ needs.docker-compose.result }}
+      DB_MIGRATION: ${{ needs.db-migration.result }}
+      INTEGRATION: ${{ needs.integration.result }}
+      PIPELINE: ${{ needs.pipeline.result }}
+      E2E_MOCKED: ${{ needs.e2e-mocked.result }}
+    steps:
+      - name: Require every applicable gate to pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+
+          for entry in             "detect:$DETECT"             "repository-policy:$REPOSITORY_POLICY"             "secret-scan:$SECRET_SCAN"             "node-quality:$NODE_QUALITY"             "contracts:$CONTRACTS"             "docker-compose:$DOCKER_COMPOSE"             "db-migration:$DB_MIGRATION"             "integration:$INTEGRATION"             "pipeline:$PIPELINE"             "e2e-mocked:$E2E_MOCKED"
+          do
+            name="${entry%%:*}"
+            result="${entry#*:}"
+            echo "$name => $result"
+
+            case "$result" in
+              success|skipped) ;;
+              *)
+                echo "::error::$name did not pass ($result)"
+                failed=1
+                ;;
+            esac
+          done
+
+          exit "$failed"
