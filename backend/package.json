@@ -1,0 +1,24 @@
+{
+  "name": "@leadboard/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=../.env --import tsx --watch src/server.ts",
+    "start": "node --env-file-if-exists=../.env dist/server.js",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@leadboard/contracts": "0.1.0",
+    "express": "^5.2.1",
+    "node-cron": "^4.2.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.0",
+    "@types/express": "^5.0.0",
+    "supertest": "^7.1.0",
+    "@types/supertest": "^6.0.0"
+  }
+}
