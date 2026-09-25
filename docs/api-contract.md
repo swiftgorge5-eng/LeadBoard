@@ -628,3 +628,8 @@ Schema 校验 numeric ID 为十进制字符串、时间为 UTC `Z` 结尾的 ISO
 - Phase 1 是单 Organization 配置、单数据库统计范围；切换 `GITHUB_ORG` 需要新数据库，不能把多个组织的完整 scope 交替写进同一数据库。
 
 数据语义边界：PR/Issue 按 `created_at` 采集时，只保证采集当时的状态；旧事件之后的关闭/合并不会因新建时间窗口自动刷新。默认分支新增但 authored_at 早于同步窗口的 Commit 也可能不被覆盖。当前不承诺完整历史、全量状态持续刷新或处理 force-push 撤回事实；需要扩展时另设任务，不能把滑动窗口描述成 GitHub 全量镜像。
+
+
+HTTP 参数默认值：省略 range 使用 30d，省略 metric 使用 total，省略 limit 使用 50；group 省略表示不过滤。显式空值、重复参数及非法值返回 JSON 4xx；不能用默认值掩盖无效输入。HTTP 层转换正十进制 limit，Analytics 接收数字。数据库聚合计数安全转换为 number，GitHub BIGINT ID 保持 string。
+
+IngestionResult 的 inserted/updated/skipped/errors 以输入 Activity 条数计数，每条只属于一项；正常返回四项之和等于输入条数。异常回滚必须上报；errors>0 不能被同步器算作该仓库成功。空的完整 scope 可以成功；scope 失败或全部仓库失败为 failed，只有部分仓库失败为 partial。

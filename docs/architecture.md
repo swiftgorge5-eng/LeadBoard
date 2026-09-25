@@ -221,7 +221,8 @@ Repository scope 失败：
 ```text
 记录该 repo 失败
 其他 repo 继续
-最终 run = partial
+部分仓库失败：最终 run = partial
+全部仓库失败：最终 run = failed
 ```
 
 ### 增量窗口
