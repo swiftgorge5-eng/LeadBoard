@@ -165,3 +165,21 @@ export type ContributorLeaderboardResponse = z.infer<typeof ContributorLeaderboa
 
 export const ApiErrorResponseSchema = z.object({ error: z.object({ code: text, message: text }) });
 export type ApiErrorResponse = z.infer<typeof ApiErrorResponseSchema>;
+
+// Names used by the handoff Issues; aliases share the same runtime schema.
+export const OrganizationSummaryResponseSchema = OrganizationSummarySchema;
+export type OrganizationSummaryResponse = OrganizationSummary;
+export const RepositoryContributorStatSchema = ContributorRepositoryStatSchema;
+export type RepositoryContributorStat = ContributorRepositoryStat;
+
+export const LeaderboardQuerySchema = z.object({
+  range: TimeRangeSchema, metric: LeaderboardMetricSchema,
+  group: text.optional(), limit: positive,
+});
+export type LeaderboardQuery = z.infer<typeof LeaderboardQuerySchema>;
+
+export const SyncConfigSchema = AppConfigSchema.pick({
+  githubOrg: true, groupProperty: true, ingestionCronSchedule: true,
+  initialSyncDays: true, syncOverlapMinutes: true, dataStaleAfterHours: true,
+});
+export type SyncConfig = z.infer<typeof SyncConfigSchema>;

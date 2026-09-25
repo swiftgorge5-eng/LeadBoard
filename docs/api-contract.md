@@ -604,3 +604,27 @@ Schema 校验 numeric ID 为十进制字符串、时间为 UTC `Z` 结尾的 ISO
 未知对象字段按 Zod 默认行为移除。Schema 不执行 IO、采集、排名或 freshness 计算。
 `AppConfigSchema` 验证解析后的配置；Backend `loadConfig` 负责 env 映射、
 默认值和 cron 校验，错误信息只输出字段名，不回显配置值。
+
+## 14. Issue 名称兼容与运行入口（集成审查补充）
+
+为保证任务说明中的 import 可以直接编译，共享包同时导出：
+
+| Issue 中使用的名称 | 共享包定义 |
+|---|---|
+| `OrganizationSummaryResponse` / `OrganizationSummaryResponseSchema` | `OrganizationSummary` / `OrganizationSummarySchema` 的别名 |
+| `RepositoryContributorStat` / `RepositoryContributorStatSchema` | `ContributorRepositoryStat` / `ContributorRepositoryStatSchema` 的别名 |
+| `LeaderboardQuery` / `LeaderboardQuerySchema` | `{ range: TimeRange; metric: LeaderboardMetric; group?: string; limit: number }` |
+| `SyncConfig` / `SyncConfigSchema` | 从 `AppConfig` 选取 `githubOrg`、`groupProperty`、`ingestionCronSchedule`、`initialSyncDays`、`syncOverlapMinutes`、`dataStaleAfterHours` |
+
+别名引用同一个 schema，不允许在前后端另复制类型。前端查询的 `limit` 可选，由 HTTP 层补默认值 50；Analytics 的 `LeaderboardQuery.limit` 必填。
+
+运行接入责任：
+
+- #13 必须把调度器接到 `backend/src/server.ts`；导入模块不启动任务。根目录提供 `npm run sync:once`，以 `trigger="manual"` 调用同一个 `runSync()`，输出不含凭据的结果后关闭连接。CLI 和服务进程必须使用同一数据库锁，不能只用进程内布尔变量防重入。
+- #15 把业务 Router 传给 `createApp({ apiRouter })`，挂载到 `/api/v1`，位于 404 之前。Router 内路径不再重复 `/api/v1`。`createApp()` 无参数仍支持健康检查。业务错误按约定映射 4xx/5xx，未处理错误统一返回不含内部信息的 JSON 500。
+- #18 验证真实运行入口：空库建表、`sync:once`、后端启动、构建后的网页、网页到后端的代理，以及详情页直接打开/刷新。不能仅导入内部函数后宣称整站启动成功。
+- `sync_runs.status=running` 是数据库内部状态；公共 `SyncRunStatus` 仍只包含已结束的 `success|partial|failed`。`getSyncStatus().lastRunStatus` 返回最近已结束的 run；没有则为 null。
+- 只提供 `from` 时，`to=now`；只提供 `to` 时，以该 to 按默认策略推导 from；最终必须满足 `from < to`。`partial/failed` 不能推进成功游标。未显式指定 from 时，新加入或重新纳入的仓库至少从 `to - initialSyncDays` 开始采集，不能直接套用其他仓库的最近游标；显式窗口优先。
+- Phase 1 是单 Organization 配置、单数据库统计范围；切换 `GITHUB_ORG` 需要新数据库，不能把多个组织的完整 scope 交替写进同一数据库。
+
+数据语义边界：PR/Issue 按 `created_at` 采集时，只保证采集当时的状态；旧事件之后的关闭/合并不会因新建时间窗口自动刷新。默认分支新增但 authored_at 早于同步窗口的 Commit 也可能不被覆盖。当前不承诺完整历史、全量状态持续刷新或处理 force-push 撤回事实；需要扩展时另设任务，不能把滑动窗口描述成 GitHub 全量镜像。

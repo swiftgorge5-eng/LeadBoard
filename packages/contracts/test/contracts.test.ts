@@ -17,6 +17,8 @@ const rank = { rank: 1, login: "alice", avatarUrl: null, commits: 2, prs: 2, iss
 const config = { githubToken: "test-only", githubOrg: "fixture", groupProperty: "leadboard_group", databaseUrl: "postgresql://localhost/fixture", port: 3000, ingestionCronSchedule: "0 */6 * * *", initialSyncDays: 30, syncOverlapMinutes: 10, dataStaleAfterHours: 12 };
 const status = { lastSuccessfulRunAt: null, lastRunStatus: null, nextScheduledRunAt: null, dataStatus: "missing" };
 const fixtures = [
+  [c.LeaderboardQuerySchema, { range: "30d", metric: "total", limit: 50 }],
+  [c.SyncConfigSchema, config],
   [c.GitHubActorTypeSchema, "Unknown"], [c.GitHubActorRefSchema, actor],
   [c.AppConfigSchema, config], [c.RepositorySyncInputSchema, { org: "fixture", groupProperty: "leadboard_group" }],
   [c.TrackedRepositorySchema, repo], [c.RepositorySyncResultSchema, { trackedRepositories: [repo], syncedAt: at }],
@@ -92,4 +94,20 @@ describe("documented shared boundaries", () => {
     if (activity.kind === "pull_request") expect(activity.mergedAt).toBe(at);
     else throw new Error("Expected PR variant");
   });
+});
+
+it("exports Issue handoff names without duplicating schemas", () => {
+  const response: c.OrganizationSummaryResponse = c.OrganizationSummaryResponseSchema.parse({ ...summary, lastUpdatedAt: null, dataStatus: "missing" });
+  const repository: c.RepositoryContributorStat = c.RepositoryContributorStatSchema.parse(repositoryStat);
+  const query: c.LeaderboardQuery = { range: "all", metric: "total", limit: 50 };
+  const sync: c.SyncConfig = c.SyncConfigSchema.parse(config);
+  expect(c.OrganizationSummaryResponseSchema).toBe(c.OrganizationSummarySchema);
+  expect(c.RepositoryContributorStatSchema).toBe(c.ContributorRepositoryStatSchema);
+  expect(response.total).toBe(11);
+  expect(repository.githubId).toBe("1001");
+  expect(c.LeaderboardQuerySchema.parse(query).limit).toBe(50);
+  expect(sync.githubOrg).toBe("fixture");
+  for (const limit of [0, -1, 1.5, "50"]) {
+    expect(c.LeaderboardQuerySchema.safeParse({ ...query, limit }).success).toBe(false);
+  }
 });

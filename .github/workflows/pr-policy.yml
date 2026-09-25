@@ -95,17 +95,14 @@ jobs:
             }
 
             const issueBody = issue.body || "";
-            const issueMarkers = [
-              "认领前必读：接口与开发语言",
-              "本 Issue 必须实现",
-              "本 Issue 必须使用",
-            ];
-
-            const missingIssueMarkers = issueMarkers.filter((m) => !issueBody.includes(m));
-            if (missingIssueMarkers.length > 0) {
-              core.setFailed(
-                `关联 Issue #${issueNumber} 缺少接口契约头部：${missingIssueMarkers.join(", ")}`
-              );
+            const currentMarkers = ["开发语言", "本 Issue 要实现的接口", "本 Issue 使用的接口", "最终产物"];
+            const legacyMarkers = ["认领前必读：接口与开发语言", "本 Issue 必须实现", "本 Issue 必须使用"];
+            const cleanIssueBody = issueBody.replace(/<!--[\s\S]*?-->/g, "");
+            const validIssue = [currentMarkers, legacyMarkers].some(markers =>
+              markers.every(marker => cleanIssueBody.includes(marker))
+            );
+            if (!validIssue) {
+              core.setFailed("关联 Issue 缺少开发语言、实现接口、使用接口或产物说明；请使用当前任务模板。");
               return;
             }
 

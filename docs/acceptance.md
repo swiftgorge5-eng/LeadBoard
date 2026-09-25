@@ -542,3 +542,41 @@ Live E2E 不使用开发者个人 Token。
 - Maintainer Review
 
 依赖升级如果导致任何 Acceptance Gate 失败，不得直接 Merge。
+
+## 17. 运行接入与最终完成检查
+
+新增命令：
+
+| 命令 | 当前用途 |
+|---|---|
+| `npm run check:integration` | 检查已出现模块的依赖和必需命令；允许尚未开发的阶段缺席 |
+| `npm run check:phase1` | 强制检查所有后端阶段和 E2E 入口；业务未完成时应失败 |
+| `npm run test:tooling` | 回归验证集成检查和 PR 元数据规则 |
+| `npm run test:bootstrap` | 构建后真实启动基础后端与网页预览，验证资源和代理；不等于业务 E2E |
+
+`check:phase1` 只检查入口完整性，不能代替业务测试。普通 CI 绿色也不表示 Phase 1 已全部完成。
+
+#13 必须交付 `npm run sync:once` 并接入后端进程的定时任务和退出清理；手动和定时同步跨进程共用数据库锁。#15 必须把路由接入 `createApp({ apiRouter })` 和实际 server 入口。#18 必须验证实际进程和浏览器页面，接手带数据库/调度器的运行测试；基础 smoke 在 sync 模块出现后不再于无数据库的 Node quality job 执行。
+
+最终验收顺序：
+
+```text
+npm ci
+npm run check:phase1
+npm run typecheck
+npm test
+npm run build
+npm run db:migrate
+npm run db:verify
+npm run test:integration
+npm run test:pipeline
+npm run test:e2e
+```
+
+上述数据库命令使用专用测试数据库。最后还要执行有真实测试组织授权的 `npm run test:e2e:live`，记录实际结果；没有授权时标记“未验证”，不能以 mock 代替。
+
+所有数据库、Pipeline、E2E 测试与 `npm test` 的无数据库单元测试分开：单元测试不得因为本机没有 PostgreSQL 而失败。CI 中数据库相关 job 先编译 contracts，Mock/Live E2E 先完成全项目构建。E2E 若使用浏览器自动化，由 #18 在工作流中明确安装所需浏览器和系统依赖。
+
+Live E2E 同时提供测试入口使用的 `LEADBOARD_E2E_GITHUB_TOKEN` / `LEADBOARD_E2E_GITHUB_ORG` 与应用使用的 `GITHUB_TOKEN` / `GITHUB_ORG`，值来自相同的专用 Secrets。
+
+Phase 1 的功能验收不等于公网生产部署验收。当前 Compose 只包含数据库。长期运行还需要正式应用运行配置、HTTPS/域名或校内访问入口、进程重启策略、备份与恢复演练；不使用 Vite preview 作为生产服务器。
