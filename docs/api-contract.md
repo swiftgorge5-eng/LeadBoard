@@ -1,41 +1,50 @@
-# Phase 1 API Contract
+# Phase 1 Interface Contract
 
-> 本文是 Phase 1 的跨模块共享契约。**不同 Issue 可以并行开发，但不得各自发明字段。** 如果接口需要变化，先更新本文并在相关 Issue 说明。
+> **这是 Phase 1 的唯一跨模块接口真相源（source of truth）。**
+>
+> 所有跨 Issue 的共享类型必须最终落到 `packages/contracts`，Backend 与 Frontend 均从该包导入。任何字段变更必须先修改本文和 contracts package，再修改实现，禁止各模块自行定义“相似但不同”的类型。
 
-## 1. 通用约定
+## 1. 全局约定
 
-Base path：
+- Node.js：24 LTS
+- 包管理：npm workspaces
+- 共享契约：`@leadboard/contracts`
+- Runtime schema：Zod
+- 时间：ISO 8601 UTC string
+- 时间窗口统一为半开区间：`[from, to)`
+- GitHub numeric ID 在 JS/TS 边界统一序列化为 `string`
+- GitHub stable ID 优先于 login / repository name
+- HTTP Base Path：`/api/v1`
+- 支持时间范围：`7d | 30d | 90d | all`
+- `all` 表示 LeadBoard **已经入库的全部历史**，不承诺等于 GitHub 账号/仓库的全部历史
+- 所有可重复执行的写入必须幂等
 
-```text
-/api/v1
+## 2. Shared actor
+
+```ts
+export type GitHubActorType =
+  | "User"
+  | "Bot"
+  | "Organization"
+  | "Unknown";
+
+export interface GitHubActorRef {
+  githubId: string | null;
+  login: string | null;
+  avatarUrl: string | null;
+  type: GitHubActorType;
+}
 ```
 
-时间范围：
+规则：
 
-```text
-7d | 30d | 90d | all
-```
+- 无法关联 GitHub 用户的 Commit 允许所有 actor identity 字段为 null，`type="Unknown"`；
+- Bot 判断优先使用 GitHub actor type，同时兼容常见 `[bot]` login；
+- Actor 信息由 Collector 提供，Ingestion 不应为每条事件重新请求 GitHub 用户 API。
 
-默认：`30d`。
+## 3. Config / Bootstrap
 
-统一约定：
-
-- 时间：ISO 8601 UTC string；
-- GitHub numeric ID：在 TypeScript 边界统一序列化为 `string`，避免 JS number 精度风险；
-- URL：使用 GitHub canonical HTML URL；
-- 内部模块只传标准化 domain object，不直接透传 GitHub 原始 JSON；
-- 所有可重放写入必须幂等；
-- Collector 不计算排名；
-- Analytics 不修改原始事实；
-- Bot 活动可计入仓库活动量，但 Bot 不进入人类 Contributor Leaderboard。
-
----
-
-# 2. Config / Bootstrap Contract
-
-## 输入
-
-环境变量：
+### 输入：环境变量
 
 ```text
 GITHUB_TOKEN
@@ -44,9 +53,12 @@ LEADBOARD_GROUP_PROPERTY=leadboard_group
 DATABASE_URL
 PORT=3000
 INGESTION_CRON_SCHEDULE=0 */6 * * *
+INITIAL_SYNC_DAYS=30
+SYNC_OVERLAP_MINUTES=10
+DATA_STALE_AFTER_HOURS=12
 ```
 
-## 输出
+### 输出
 
 ```ts
 export interface AppConfig {
@@ -56,20 +68,17 @@ export interface AppConfig {
   databaseUrl: string;
   port: number;
   ingestionCronSchedule: string;
+  initialSyncDays: number;
+  syncOverlapMinutes: number;
+  dataStaleAfterHours: number;
 }
 ```
 
-要求：
+要求：缺少必填项时启动失败；日志不得输出 Token。
 
-- 缺少必填项时服务启动失败；
-- 日志不得输出 `githubToken`；
-- Config 解析只做一次，后续模块接收 typed config。
+## 4. Repository Sync
 
----
-
-# 3. Repository Sync Contract
-
-## 输入
+### 输入
 
 ```ts
 export interface RepositorySyncInput {
@@ -78,9 +87,7 @@ export interface RepositorySyncInput {
 }
 ```
 
-以及统一 GitHub Client。
-
-## 输出
+### 单个受监控仓库
 
 ```ts
 export interface TrackedRepository {
@@ -93,90 +100,128 @@ export interface TrackedRepository {
   group: string;
   htmlUrl: string;
   archived: boolean;
+}
+```
+
+### 输出
+
+```ts
+export interface RepositorySyncResult {
+  trackedRepositories: TrackedRepository[];
   syncedAt: string;
 }
 ```
 
 规则：
 
-- `leadboard_group=<group>`：保留；
-- `leadboard_group=untracked`：剔除；
-- property 缺失：剔除；
-- Fork：剔除；
-- Private：Phase 1 剔除；
-- rename 后以 `githubId` 判断为同一仓库；
-- Custom Property / repository pagination 不完整时，同步整体失败，不能返回“半套成功结果”。
+- `leadboard_group=<group>`：纳入；
+- `leadboard_group=untracked`：排除；
+- property 缺失：排除；
+- Fork：排除；
+- Private：Phase 1 排除；
+- Repository rename 使用 `githubId` 识别为同一仓库；
+- Repository / Custom Property 任一分页不完整时，整个 Repository Sync 失败，不得返回半套结果；
+- 因为结果是完整快照，Ingestion 可以把数据库中“上一轮 tracked、这一轮已不在结果中”的仓库标记为 `tracked=false`。
 
----
+## 5. GitHub Client
 
-# 4. GitHub Client Contract
-
-业务 Collector 不直接操作 fetch/axios。
-
-建议统一接口：
+业务模块不得各自创建 GitHub HTTP Client。
 
 ```ts
 export interface GitHubClient {
-  listOrgRepositories(org: string): Promise<GitHubRepositoryRef[]>;
+  listOrgRepositories(org: string): Promise<unknown[]>;
 
   getRepositoryCustomProperties(
     owner: string,
     repo: string
   ): Promise<Record<string, string | null>>;
 
-  queryGraphQL<T>(
-    query: string,
-    variables?: Record<string, unknown>
-  ): Promise<T>;
-
   requestRest<T>(
     method: "GET" | "POST" | "PATCH",
     path: string,
     params?: Record<string, unknown>
   ): Promise<T>;
+
+  paginateRest<T>(
+    path: string,
+    params?: Record<string, unknown>
+  ): Promise<T[]>;
+
+  queryGraphQL<T>(
+    query: string,
+    variables?: Record<string, unknown>
+  ): Promise<T>;
 }
 ```
 
-要求：
+边界：
 
-- REST/GraphQL 分页由 Client 层封装；
-- 统一处理 Rate Limit；
-- 对可重试 5xx / throttling 做有限重试；
-- 错误对象保留 endpoint/status/context，但不得包含 Token。
+- GitHub Client 负责鉴权、REST pagination、Rate Limit、Retry 和统一错误；
+- GraphQL connection 的 cursor 循环由具体 Collector 负责，因为不同 query 的 connection 结构不同；
+- Client 提供单次 `queryGraphQL` primitive；
+- 错误可包含 endpoint/status/context，不得包含 Token。
 
----
+## 6. Collector → Ingestion
 
-# 5. Collector Contract
+使用 **discriminated union**，保证数据模型需要的字段不会丢失。
 
-## Activity 类型
+### Base
 
 ```ts
-export type ActivityKind =
-  | "commit"
-  | "pull_request"
-  | "issue";
-
-export interface GitHubActivity {
-  kind: ActivityKind;
-
-  // sha / PR GitHub ID / Issue GitHub ID
-  externalId: string;
-
+export interface ActivityBase {
   repositoryGithubId: string;
-
-  actorLogin: string | null;
-  actorGithubId: string | null;
-
-  // 此 activity 用于统计的主时间
-  occurredAt: string;
-
-  state?: "open" | "closed" | "merged";
-
-  additions?: number;
-  deletions?: number;
-
-  rawUrl?: string;
+  actor: GitHubActorRef;
+  rawUrl: string | null;
 }
+```
+
+### Commit
+
+```ts
+export interface CommitActivity extends ActivityBase {
+  kind: "commit";
+  externalId: string;      // sha
+  occurredAt: string;      // authored_at
+  additions: number;
+  deletions: number;
+  isMerge: boolean;
+}
+```
+
+### Pull Request
+
+```ts
+export interface PullRequestActivity extends ActivityBase {
+  kind: "pull_request";
+  externalId: string;      // GitHub PR database ID
+  number: number;          // repository-local PR number
+  occurredAt: string;      // created_at
+  state: "open" | "closed" | "merged";
+  closedAt: string | null;
+  mergedAt: string | null;
+}
+```
+
+### Issue
+
+```ts
+export interface IssueActivity extends ActivityBase {
+  kind: "issue";
+  externalId: string;      // GitHub Issue database ID
+  number: number;
+  occurredAt: string;      // created_at
+  state: "open" | "closed";
+  closedAt: string | null;
+}
+```
+
+### Union
+
+```ts
+export type GitHubActivity =
+  | CommitActivity
+  | PullRequestActivity
+  | IssueActivity;
 ```
 
 唯一性：
@@ -185,106 +230,76 @@ export interface GitHubActivity {
 repositoryGithubId + kind + externalId
 ```
 
-必须能够用于幂等去重。
-
-## Commit Collector
-
-输入：
+Collector 函数：
 
 ```ts
 export interface CollectRange {
-  from: string;
-  to: string;
+  from: string; // inclusive
+  to: string;   // exclusive
 }
 
 collectCommits(
   repo: TrackedRepository,
   range: CollectRange
-): Promise<GitHubActivity[]>
-```
+): Promise<CommitActivity[]>;
 
-输出要求：
-
-- `kind="commit"`
-- `externalId=sha`
-- `occurredAt=authored_at`
-- 默认分支历史
-- 无法关联 GitHub 用户时 actor 允许为 null
-
-## PR Collector
-
-```ts
 collectPullRequests(
   repo: TrackedRepository,
   range: CollectRange
-): Promise<GitHubActivity[]>
-```
+): Promise<PullRequestActivity[]>;
 
-Phase 1 排行口径：
-
-- `occurredAt = created_at`
-- `state = open | closed | merged`
-
-## Issue Collector
-
-```ts
 collectIssues(
   repo: TrackedRepository,
   range: CollectRange
-): Promise<GitHubActivity[]>
+): Promise<IssueActivity[]>;
 ```
 
-要求：GitHub Issue API 返回的 PR 必须被过滤，不能同时记作 Issue。
+额外规则：
 
----
+- Commit 只采默认分支；
+- PR / Issue 排行口径按 `created_at`；
+- Issue API 中的 PR 必须过滤；
+- Merge commit 保留 `isMerge`，Phase 1 排名不使用代码行；
+- Collector 只产生事实，不做排名。
 
-# 6. Ingestion Contract
+## 7. Ingestion
 
-## 输入
+Repository scope 与 activity 写入分开，避免仓库退出统计范围后无法更新状态。
 
 ```ts
-export interface IngestionInput {
-  repositories: TrackedRepository[];
-  activities: GitHubActivity[];
+export interface RepositoryScopeApplyResult {
+  tracked: number;
+  untracked: number;
+  upserted: number;
 }
-```
 
-## 输出
-
-```ts
 export interface IngestionResult {
   inserted: number;
   updated: number;
   skipped: number;
   errors: number;
 }
+
+applyRepositoryScope(
+  scope: RepositorySyncResult
+): Promise<RepositoryScopeApplyResult>;
+
+ingestActivities(
+  activities: GitHubActivity[]
+): Promise<IngestionResult>;
 ```
 
-行为要求：
+要求：
 
-- upsert group / repository / contributor；
-- 识别 Bot；
-- Commit / PR / Issue 幂等写入；
-- repository rename 通过 `github_id` 更新；
-- 无 actor 的 Commit 仍保留为仓库事实；
-- 单条坏数据不得静默污染数据库。
+- `applyRepositoryScope` 在完整 Repository Sync 成功后执行；
+- 当前快照不存在的历史 tracked repository 标记为 `tracked=false`；
+- group / repository / contributor 使用 stable ID upsert；
+- Contributor 有 `githubId` 时按 githubId 归并，缺失时才退化为 login；
+- 同一 activity 重放不会产生重复记录；
+- 无 actor 的 Commit 仍写入仓库事实；
+- Bot activity 保留，但 contributor 标记 `is_bot=true`。
 
-数据库字段以 [data-model.md](data-model.md) 为准。
-
----
-
-# 7. Sync Orchestrator Contract
-
-## 输入
-
-```ts
-export interface RunSyncInput {
-  from?: string;
-  to?: string;
-}
-```
-
-## 输出
+## 8. Sync Orchestrator
 
 ```ts
 export type SyncRunStatus =
@@ -292,8 +307,21 @@ export type SyncRunStatus =
   | "partial"
   | "failed";
 
+export type SyncTrigger =
+  | "scheduled"
+  | "manual";
+
+export interface RunSyncInput {
+  from?: string;
+  to?: string;
+  trigger: SyncTrigger;
+}
+
 export interface SyncRunResult {
   status: SyncRunStatus;
+  trigger: SyncTrigger;
+  rangeFrom: string;
+  rangeTo: string;
   repositoriesOk: number;
   repositoriesFailed: number;
   startedAt: string;
@@ -301,38 +329,109 @@ export interface SyncRunResult {
 }
 ```
 
-要求：
+窗口策略：
 
+- 所有区间使用 `[from,to)`；
+- 显式传 `from/to` 时严格使用；
+- 未显式传时，`to=now`；
+- 有最近成功 run：`from = lastSuccessfulRangeTo - SYNC_OVERLAP_MINUTES`；
+- 从未成功同步：`from = to - INITIAL_SYNC_DAYS`；
+- overlap 依靠幂等 upsert 去重；
 - 一次 run 对应一条 `sync_runs`；
-- 单仓库失败允许总体为 `partial`；
-- 同一 sync job 不允许并发重入；
-- cron 默认每 6 小时一次；
-- 手动 backfill 与周期同步逻辑共用同一底层 pipeline。
+- 同一时刻禁止两个 sync run 并发。
 
----
-
-# 8. Analytics Service Contract
-
-## 输入
+Sync query service：
 
 ```ts
-export type TimeRange =
-  | "7d"
-  | "30d"
-  | "90d"
-  | "all";
+export interface SyncStatus {
+  lastSuccessfulRunAt: string | null;
+  lastRunStatus: SyncRunStatus | null;
+  nextScheduledRunAt: string | null;
+  dataStatus: "fresh" | "stale" | "missing";
+}
 
-export type LeaderboardMetric =
-  | "total"
-  | "commits"
-  | "prs"
-  | "issues";
+getSyncStatus(): Promise<SyncStatus>;
 ```
 
-核心 service：
+`dataStatus`：
+
+- 从未成功：`missing`
+- 距最近成功 > `DATA_STALE_AFTER_HOURS`：`stale`
+- 否则：`fresh`
+
+## 9. Analytics
 
 ```ts
-getOrganizationSummary(range: TimeRange): Promise<OrganizationSummary>;
+export type TimeRange = "7d" | "30d" | "90d" | "all";
+export type LeaderboardMetric = "total" | "commits" | "prs" | "issues";
+
+export interface GroupSummary {
+  name: string;
+}
+
+export interface OrganizationSummary {
+  range: TimeRange;
+  repositories: number;
+  contributors: number;
+  commits: number;
+  prs: number;
+  issues: number;
+  total: number;
+  lastUpdatedAt: string | null;
+  dataStatus: "fresh" | "stale" | "missing";
+}
+
+export interface RepositoryStat {
+  githubId: string;
+  fullName: string;
+  group: string;
+  commits: number;
+  prs: number;
+  issues: number;
+  contributors: number;
+  total: number;
+}
+
+export interface ContributorRank {
+  rank: number;
+  login: string;
+  avatarUrl: string | null;
+  commits: number;
+  prs: number;
+  issues: number;
+  total: number;
+}
+
+export interface ContributorRepositoryStat {
+  githubId: string;
+  fullName: string;
+  group: string;
+  commits: number;
+  prs: number;
+  issues: number;
+  total: number;
+}
+
+export interface ContributorDetail {
+  login: string;
+  avatarUrl: string | null;
+  range: TimeRange;
+  commits: number;
+  prs: number;
+  issues: number;
+  total: number;
+  repositories: ContributorRepositoryStat[];
+}
+```
+
+Service：
+
+```ts
+getGroups(): Promise<GroupSummary[]>;
+
+getOrganizationSummary(
+  range: TimeRange
+): Promise<OrganizationSummary>;
 
 getRepositoryStats(
   range: TimeRange,
@@ -352,7 +451,7 @@ getContributorDetail(
 ): Promise<ContributorDetail | null>;
 ```
 
-## 基础口径
+口径：
 
 ```text
 commits = authored_at in range 的 tracked default-branch commit
@@ -361,228 +460,85 @@ issues  = created_at in range 的 tracked Issue
 total   = commits + prs + issues
 ```
 
-Phase 1 **不使用加权积分**。
+- Organization / Repository activity 包含 Bot activity 和无法归属 contributor 的 Commit；
+- Contributor 数量和 Contributor Leaderboard 只统计可识别的非 Bot contributor；
+- Phase 1 不使用加权积分；
+- 同分排序：`metric DESC, login ASC`。
 
----
+## 10. REST API
 
-# 9. HTTP API
+### Health
 
-## Health
-
-```http
-GET /health
-```
-
-响应：
+`GET /health`
 
 ```json
-{
-  "status": "ok"
+{ "status": "ok" }
+```
+
+### Organization Summary
+
+`GET /api/v1/organization/summary?range=30d`
+
+返回 `OrganizationSummary`。
+
+### Repository Stats
+
+`GET /api/v1/organization/repositories?range=30d&group=AI`
+
+```ts
+export interface RepositoryStatsResponse {
+  items: RepositoryStat[];
 }
 ```
 
----
+### Groups
 
-## Organization Summary
+`GET /api/v1/groups`
 
-```http
-GET /api/v1/organization/summary?range=30d
-```
-
-响应：
-
-```json
-{
-  "range": "30d",
-  "repositories": 12,
-  "contributors": 48,
-  "commits": 523,
-  "prs": 76,
-  "issues": 34,
-  "total": 633,
-  "lastUpdatedAt": "2026-09-25T04:00:00.000Z",
-  "dataStatus": "fresh"
+```ts
+export interface GroupsResponse {
+  items: GroupSummary[];
 }
 ```
 
-`dataStatus`：
+`group` query 参数使用 group **name**，不是数据库 ID。
 
-```text
-fresh | stale | missing
-```
+### Contributor Leaderboard
 
----
+`GET /api/v1/contributors/leaderboard?range=30d&metric=total&limit=50&group=AI`
 
-## Repository Stats
-
-```http
-GET /api/v1/organization/repositories?range=30d&group=AI
-```
-
-响应：
-
-```json
-{
-  "items": [
-    {
-      "githubId": "123",
-      "fullName": "example/repo",
-      "group": "AI",
-      "commits": 40,
-      "prs": 8,
-      "issues": 3,
-      "contributors": 7,
-      "total": 51
-    }
-  ]
+```ts
+export interface ContributorLeaderboardResponse {
+  range: TimeRange;
+  metric: LeaderboardMetric;
+  items: ContributorRank[];
 }
 ```
 
-`group` 可选。
+### Contributor Detail
 
----
+`GET /api/v1/contributors/:username?range=30d`
 
-## Groups
+返回 `ContributorDetail`；不存在返回 404。
 
-```http
-GET /api/v1/groups
-```
+### Sync Status
 
-响应：
+`GET /api/v1/sync/status`
 
-```json
-{
-  "items": [
-    {
-      "id": 1,
-      "name": "AI"
-    }
-  ]
+返回 `SyncStatus`。
+
+## 11. 错误格式
+
+```ts
+export interface ApiErrorResponse {
+  error: {
+    code: string;
+    message: string;
+  };
 }
 ```
 
----
-
-## Contributor Leaderboard
-
-```http
-GET /api/v1/contributors/leaderboard?range=30d&metric=total&limit=50&group=AI
-```
-
-参数：
-
-```text
-range  = 7d | 30d | 90d | all
-metric = total | commits | prs | issues
-limit  = positive integer, default 50
-group  = optional
-```
-
-响应：
-
-```json
-{
-  "range": "30d",
-  "metric": "total",
-  "items": [
-    {
-      "rank": 1,
-      "login": "octocat",
-      "avatarUrl": "https://...",
-      "commits": 30,
-      "prs": 5,
-      "issues": 2,
-      "total": 37
-    }
-  ]
-}
-```
-
-同分排序必须稳定。Phase 1 建议：
-
-```text
-metric DESC, login ASC
-```
-
----
-
-## Contributor Detail
-
-```http
-GET /api/v1/contributors/:username?range=30d
-```
-
-响应：
-
-```json
-{
-  "login": "octocat",
-  "avatarUrl": "https://...",
-  "range": "30d",
-  "commits": 30,
-  "prs": 5,
-  "issues": 2,
-  "total": 37,
-  "repositories": [
-    {
-      "githubId": "123",
-      "fullName": "example/repo",
-      "group": "AI",
-      "commits": 10,
-      "prs": 2,
-      "issues": 1,
-      "total": 13
-    }
-  ]
-}
-```
-
-用户不存在时返回 404。
-
----
-
-## Sync Status
-
-```http
-GET /api/v1/sync/status
-```
-
-响应：
-
-```json
-{
-  "lastSuccessfulRunAt": "2026-09-25T04:00:00.000Z",
-  "lastRunStatus": "success",
-  "nextScheduledRunAt": "2026-09-25T10:00:00.000Z"
-}
-```
-
-若从未成功同步：
-
-```json
-{
-  "lastSuccessfulRunAt": null,
-  "lastRunStatus": null,
-  "nextScheduledRunAt": "2026-09-25T10:00:00.000Z"
-}
-```
-
----
-
-# 10. 错误格式
-
-所有 HTTP API 错误统一：
-
-```json
-{
-  "error": {
-    "code": "INVALID_RANGE",
-    "message": "range must be 7d, 30d, 90d or all"
-  }
-}
-```
-
-示例错误码：
+示例 code：
 
 ```text
 INVALID_RANGE
@@ -591,20 +547,18 @@ INVALID_LIMIT
 CONTRIBUTOR_NOT_FOUND
 DATABASE_UNAVAILABLE
 GITHUB_RATE_LIMITED
+SYNC_ALREADY_RUNNING
 INTERNAL_ERROR
 ```
 
-HTTP status 必须与错误语义一致。
+## 12. 接口变更规则
 
----
+任何跨模块接口变更必须按此顺序：
 
-# 11. 接口变更规则
+1. 在相关 Issue 说明变更原因；
+2. 更新本文；
+3. 更新 `packages/contracts` schema/type；
+4. 更新/增加 contract test；
+5. 再修改 Backend / Frontend 实现。
 
-如果某个 Issue 发现接口需要变化：
-
-1. 先在对应 Issue 说明原因；
-2. 更新本文件；
-3. 标记所有受影响 Issue；
-4. 再修改实现。
-
-不要在某个模块内部偷偷新增或改名共享字段。
+未经以上步骤，不接受“本模块先自定义一个字段”的 PR。
