@@ -7,6 +7,7 @@ export default defineConfig(({ mode }) => {
   const target = `http://127.0.0.1:${process.env.PORT ?? env.PORT ?? "3000"}`;
   return {
     plugins: [react()],
+    envDir: "..",
     server: {
       port: 5173,
       strictPort: true,
