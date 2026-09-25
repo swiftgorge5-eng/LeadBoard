@@ -102,6 +102,26 @@ jobs:
           grep -q 'source of truth' docs/api-contract.md
           grep -q 'Integration Gates' README.md
 
+          # Once Bootstrap introduces the root package, the core monorepo shape
+          # becomes mandatory. This prevents a partial #2 implementation from
+          # making later jobs silently skip.
+          if [[ -f package.json ]]; then
+            bootstrap_required=(
+              package-lock.json
+              backend/package.json
+              frontend/package.json
+              packages/contracts/package.json
+              docker-compose.yml
+            )
+
+            for path in "${bootstrap_required[@]}"; do
+              [[ -f "$path" ]] || {
+                echo "::error::Bootstrap is partial; missing required file: $path"
+                exit 1
+              }
+            done
+          fi
+
   secret-scan:
     name: Secret scan
     runs-on: ubuntu-latest
