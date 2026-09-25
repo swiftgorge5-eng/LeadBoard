@@ -23,12 +23,16 @@
     "check:integration": "node scripts/check-integration.mjs",
     "check:phase1": "node scripts/check-integration.mjs --complete",
     "test:tooling": "node --test scripts/test/*.test.mjs",
-    "test:bootstrap": "node scripts/bootstrap-smoke.mjs"
+    "test:bootstrap": "node scripts/bootstrap-smoke.mjs",
+    "db:migrate": "node --env-file-if-exists=.env scripts/db-migrate.mjs",
+    "db:verify": "node --env-file-if-exists=.env scripts/db-verify.mjs",
+    "test:db": "node --env-file-if-exists=.env ./node_modules/vitest/vitest.mjs run --root backend db-test"
   },
   "devDependencies": {
-    "typescript": "~5.9.3",
-    "vitest": "^5.0.1",
+    "@types/node": "^24.0.0",
     "concurrently": "^9.2.1",
-    "@types/node": "^24.0.0"
+    "node-pg-migrate": "^9.0.0",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.1"
   }
 }
