@@ -99,3 +99,51 @@ PR Review 时，如果发现某个模块重新定义了 `TrackedRepository`、`G
 - E2E
 
 不要通过“前端临时适配字段”或“Ingestion 临时补 GitHub 数据”来掩盖接口不一致。
+
+
+## 10. Pull Request 验收流程
+
+提交 PR 后，按下面顺序验收：
+
+```text
+PR Policy
+  ↓
+Secret Scan
+  ↓
+Typecheck / Unit Test / Build
+  ↓
+Contract / DB / Integration / Pipeline（按模块自动启用）
+  ↓
+Issue 专项 Acceptance Criteria
+  ↓
+Maintainer Review
+  ↓
+Merge
+```
+
+详细规则见 [docs/acceptance.md](docs/acceptance.md)。
+
+PR 描述必须提供：
+
+- `Closes #<issue-number>`
+- 本 PR 实现的接口
+- 本 PR 使用的接口
+- 实际运行的验收命令与结果
+- Contract / DB 变化说明
+- UI 截图（如适用）
+- 风险与回滚说明
+
+CI 红色时不要请求 Merge。
+
+## 11. main 分支规则
+
+推荐 Ruleset / Branch Protection 见 [docs/repository-rules.md](docs/repository-rules.md)。
+
+关键 Required Checks：
+
+```text
+CI / Acceptance gate
+PR Policy / PR metadata and linked issue
+```
+
+所有 Review thread 应在 Merge 前 resolved。
