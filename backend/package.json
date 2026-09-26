@@ -19,6 +19,6 @@
     "tsx": "^4.20.0",
     "@types/express": "^5.0.0",
     "supertest": "^7.1.0",
-    "@types/supertest": "^6.0.0"
+    "@types/supertest": "^7.2.1"
   }
 }
