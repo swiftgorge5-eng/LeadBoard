@@ -4,8 +4,8 @@ export const up = (pgm) => {
     CREATE TABLE groups (
       id BIGSERIAL PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
-      created_at TIMESTAMPTZ DEFAULT now(),
-      updated_at TIMESTAMPTZ DEFAULT now()
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
     CREATE TABLE repositories (
@@ -21,8 +21,8 @@ export const up = (pgm) => {
       archived BOOLEAN NOT NULL DEFAULT FALSE,
       tracked BOOLEAN NOT NULL DEFAULT TRUE,
       last_synced_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ DEFAULT now(),
-      updated_at TIMESTAMPTZ DEFAULT now()
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
     CREATE TABLE contributors (
@@ -32,13 +32,13 @@ export const up = (pgm) => {
       avatar_url TEXT,
       actor_type TEXT NOT NULL DEFAULT 'Unknown',
       is_bot BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TIMESTAMPTZ DEFAULT now(),
-      updated_at TIMESTAMPTZ DEFAULT now()
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
     CREATE TABLE commits (
       id BIGSERIAL PRIMARY KEY,
-      repository_id BIGINT REFERENCES repositories(id),
+      repository_id BIGINT NOT NULL REFERENCES repositories(id),
       sha TEXT NOT NULL,
       contributor_id BIGINT REFERENCES contributors(id),
       authored_at TIMESTAMPTZ NOT NULL,
@@ -46,12 +46,13 @@ export const up = (pgm) => {
       deletions INTEGER NOT NULL DEFAULT 0,
       is_merge BOOLEAN NOT NULL DEFAULT FALSE,
       html_url TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE (repository_id, sha)
     );
 
     CREATE TABLE pull_requests (
       id BIGSERIAL PRIMARY KEY,
-      repository_id BIGINT REFERENCES repositories(id),
+      repository_id BIGINT NOT NULL REFERENCES repositories(id),
       github_id BIGINT NOT NULL,
       number INTEGER NOT NULL,
       contributor_id BIGINT REFERENCES contributors(id),
@@ -60,12 +61,13 @@ export const up = (pgm) => {
       closed_at TIMESTAMPTZ,
       merged_at TIMESTAMPTZ,
       html_url TEXT,
+      ingested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE (repository_id, github_id)
     );
 
     CREATE TABLE issues (
       id BIGSERIAL PRIMARY KEY,
-      repository_id BIGINT REFERENCES repositories(id),
+      repository_id BIGINT NOT NULL REFERENCES repositories(id),
       github_id BIGINT NOT NULL,
       number INTEGER NOT NULL,
       contributor_id BIGINT REFERENCES contributors(id),
@@ -73,6 +75,7 @@ export const up = (pgm) => {
       created_at TIMESTAMPTZ NOT NULL,
       closed_at TIMESTAMPTZ,
       html_url TEXT,
+      ingested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE (repository_id, github_id)
     );
 
@@ -86,7 +89,8 @@ export const up = (pgm) => {
       status TEXT NOT NULL,
       repositories_ok INTEGER NOT NULL DEFAULT 0,
       repositories_failed INTEGER NOT NULL DEFAULT 0,
-      error_message TEXT
+      error_message TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
     CREATE INDEX repositories_tracked_idx ON repositories (tracked);

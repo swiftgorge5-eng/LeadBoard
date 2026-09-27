@@ -6,24 +6,55 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
-const tables = {
-  groups: { id: "bigint", name: "text", created_at: "timestamp with time zone", updated_at: "timestamp with time zone" },
-  repositories: { id: "bigint", github_id: "bigint", node_id: "text", owner: "text", name: "text", full_name: "text", default_branch: "text", group_id: "bigint", html_url: "text", archived: "boolean", tracked: "boolean", last_synced_at: "timestamp with time zone", created_at: "timestamp with time zone", updated_at: "timestamp with time zone" },
-  contributors: { id: "bigint", github_id: "bigint", login: "text", avatar_url: "text", actor_type: "text", is_bot: "boolean", created_at: "timestamp with time zone", updated_at: "timestamp with time zone" },
-  commits: { id: "bigint", repository_id: "bigint", sha: "text", contributor_id: "bigint", authored_at: "timestamp with time zone", additions: "integer", deletions: "integer", is_merge: "boolean", html_url: "text" },
-  pull_requests: { id: "bigint", repository_id: "bigint", github_id: "bigint", number: "integer", contributor_id: "bigint", state: "text", created_at: "timestamp with time zone", closed_at: "timestamp with time zone", merged_at: "timestamp with time zone", html_url: "text" },
-  issues: { id: "bigint", repository_id: "bigint", github_id: "bigint", number: "integer", contributor_id: "bigint", state: "text", created_at: "timestamp with time zone", closed_at: "timestamp with time zone", html_url: "text" },
-  sync_runs: { id: "bigint", trigger: "text", range_from: "timestamp with time zone", range_to: "timestamp with time zone", started_at: "timestamp with time zone", finished_at: "timestamp with time zone", status: "text", repositories_ok: "integer", repositories_failed: "integer", error_message: "text" },
-};
+const timestamp = "timestamp with time zone";
+const required = (type, defaultValue = null) => ({ type, nullable: false, defaultValue });
+const optional = (type) => ({ type, nullable: true, defaultValue: null });
+const id = () => required("bigint", "serial");
 
-const requiredNotNull = {
-  groups: ["id", "name"],
-  repositories: ["id", "github_id", "node_id", "owner", "name", "full_name", "default_branch", "html_url", "archived", "tracked"],
-  contributors: ["id", "actor_type", "is_bot"],
-  commits: ["id", "sha", "authored_at", "additions", "deletions", "is_merge"],
-  pull_requests: ["id", "github_id", "number", "state", "created_at"],
-  issues: ["id", "github_id", "number", "state", "created_at"],
-  sync_runs: ["id", "trigger", "range_from", "range_to", "started_at", "status", "repositories_ok", "repositories_failed"],
+// Expected columns, nullability and defaults come from docs/data-model.md.
+const tables = {
+  groups: {
+    id: id(), name: required("text"),
+    created_at: required(timestamp, "now()"), updated_at: required(timestamp, "now()"),
+  },
+  repositories: {
+    id: id(), github_id: required("bigint"), node_id: required("text"),
+    owner: required("text"), name: required("text"), full_name: required("text"),
+    default_branch: required("text"), group_id: optional("bigint"),
+    html_url: required("text"), archived: required("boolean", "false"),
+    tracked: required("boolean", "true"), last_synced_at: optional(timestamp),
+    created_at: required(timestamp, "now()"), updated_at: required(timestamp, "now()"),
+  },
+  contributors: {
+    id: id(), github_id: optional("bigint"), login: optional("text"), avatar_url: optional("text"),
+    actor_type: required("text", "'Unknown'::text"), is_bot: required("boolean", "false"),
+    created_at: required(timestamp, "now()"), updated_at: required(timestamp, "now()"),
+  },
+  commits: {
+    id: id(), repository_id: required("bigint"), sha: required("text"),
+    contributor_id: optional("bigint"), authored_at: required(timestamp),
+    additions: required("integer", "0"), deletions: required("integer", "0"),
+    is_merge: required("boolean", "false"), html_url: optional("text"),
+    created_at: required(timestamp, "now()"),
+  },
+  pull_requests: {
+    id: id(), repository_id: required("bigint"), github_id: required("bigint"),
+    number: required("integer"), contributor_id: optional("bigint"), state: required("text"),
+    created_at: required(timestamp), closed_at: optional(timestamp), merged_at: optional(timestamp),
+    html_url: optional("text"), ingested_at: required(timestamp, "now()"),
+  },
+  issues: {
+    id: id(), repository_id: required("bigint"), github_id: required("bigint"),
+    number: required("integer"), contributor_id: optional("bigint"), state: required("text"),
+    created_at: required(timestamp), closed_at: optional(timestamp), html_url: optional("text"),
+    ingested_at: required(timestamp, "now()"),
+  },
+  sync_runs: {
+    id: id(), trigger: required("text"), range_from: required(timestamp), range_to: required(timestamp),
+    started_at: required(timestamp), finished_at: optional(timestamp), status: required("text"),
+    repositories_ok: required("integer", "0"), repositories_failed: required("integer", "0"),
+    error_message: optional("text"), created_at: required(timestamp, "now()"),
+  },
 };
 
 const foreignKeys = [
@@ -58,17 +89,26 @@ const indexes = {
 const pool = new pg.Pool({ connectionString: databaseUrl });
 const problems = [];
 try {
-  const columns = (await pool.query(`SELECT table_name, column_name, data_type, is_nullable
+  const columns = (await pool.query(`SELECT table_name, column_name, data_type, is_nullable, column_default
     FROM information_schema.columns WHERE table_schema = current_schema()`)).rows;
   const foundColumns = new Map(columns.map(row => [`${row.table_name}.${row.column_name}`, row]));
   for (const [table, expectedColumns] of Object.entries(tables)) {
     const tableExists = await pool.query(`SELECT to_regclass(format('%I.%I', current_schema(), $1::text)) AS name`, [table]);
     if (!tableExists.rows[0].name) problems.push(`missing table ${table}`);
-    for (const [column, type] of Object.entries(expectedColumns)) {
+    for (const [column, expected] of Object.entries(expectedColumns)) {
       const actual = foundColumns.get(`${table}.${column}`);
       if (!actual) problems.push(`missing column ${table}.${column}`);
-      else if (actual.data_type !== type) problems.push(`wrong type ${table}.${column}: ${actual.data_type}`);
-      if (actual && requiredNotNull[table].includes(column) && actual.is_nullable !== "NO") problems.push(`missing NOT NULL ${table}.${column}`);
+      else {
+        if (actual.data_type !== expected.type) problems.push(`wrong type ${table}.${column}: ${actual.data_type}`);
+        if ((actual.is_nullable === "YES") !== expected.nullable) problems.push(`wrong nullability ${table}.${column}: ${actual.is_nullable}`);
+        const defaultMatches = expected.defaultValue === "serial"
+          ? actual.column_default?.startsWith("nextval(") && actual.column_default.includes(`${table}_id_seq`)
+          : actual.column_default === expected.defaultValue;
+        if (!defaultMatches) problems.push(`wrong default ${table}.${column}: ${actual.column_default ?? "NULL"}`);
+      }
+    }
+    for (const actual of columns.filter(row => row.table_name === table)) {
+      if (!(actual.column_name in expectedColumns)) problems.push(`unexpected column ${table}.${actual.column_name}`);
     }
   }
 
