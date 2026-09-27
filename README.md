@@ -118,7 +118,15 @@ docker compose down
 
 这会停止数据库并保留数据。**不要随意加 `-v`，它会删除本地数据库数据。**
 
-目前 `db/migrations` 只是预留目录，数据库表和建表步骤由 #3 任务实现；启动数据库不等于已经完成业务数据初始化。
+启动数据库后，在项目最外层运行：
+
+```text
+npm run db:migrate
+npm run db:verify
+npm run test:db
+```
+
+`db:migrate` 创建数据库表，重复运行会跳过已应用的 migration；`db:verify` 检查表、字段、外键、唯一约束和索引；`test:db` 在独立的临时 schema 中运行 PostgreSQL 集成测试并清理测试数据。这三个命令只需要根目录 `.env` 或环境变量中的 `DATABASE_URL`，不需要 GitHub Token。普通 `npm test` 不连接数据库。
 
 ### 启动失败时，先看这里
 

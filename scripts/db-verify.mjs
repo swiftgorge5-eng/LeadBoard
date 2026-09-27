@@ -1,0 +1,151 @@
+import pg from "pg";
+
+const databaseUrl = process.env.DATABASE_URL?.trim();
+if (!databaseUrl) {
+  console.error("DATABASE_URL is required");
+  process.exit(1);
+}
+
+const timestamp = "timestamp with time zone";
+const required = (type, defaultValue = null) => ({ type, nullable: false, defaultValue });
+const optional = (type) => ({ type, nullable: true, defaultValue: null });
+const id = () => required("bigint", "serial");
+
+// Expected columns, nullability and defaults come from docs/data-model.md.
+const tables = {
+  groups: {
+    id: id(), name: required("text"),
+    created_at: required(timestamp, "now()"), updated_at: required(timestamp, "now()"),
+  },
+  repositories: {
+    id: id(), github_id: required("bigint"), node_id: required("text"),
+    owner: required("text"), name: required("text"), full_name: required("text"),
+    default_branch: required("text"), group_id: optional("bigint"),
+    html_url: required("text"), archived: required("boolean", "false"),
+    tracked: required("boolean", "true"), last_synced_at: optional(timestamp),
+    created_at: required(timestamp, "now()"), updated_at: required(timestamp, "now()"),
+  },
+  contributors: {
+    id: id(), github_id: optional("bigint"), login: optional("text"), avatar_url: optional("text"),
+    actor_type: required("text", "'Unknown'::text"), is_bot: required("boolean", "false"),
+    created_at: required(timestamp, "now()"), updated_at: required(timestamp, "now()"),
+  },
+  commits: {
+    id: id(), repository_id: required("bigint"), sha: required("text"),
+    contributor_id: optional("bigint"), authored_at: required(timestamp),
+    additions: required("integer", "0"), deletions: required("integer", "0"),
+    is_merge: required("boolean", "false"), html_url: optional("text"),
+    created_at: required(timestamp, "now()"),
+  },
+  pull_requests: {
+    id: id(), repository_id: required("bigint"), github_id: required("bigint"),
+    number: required("integer"), contributor_id: optional("bigint"), state: required("text"),
+    created_at: required(timestamp), closed_at: optional(timestamp), merged_at: optional(timestamp),
+    html_url: optional("text"), ingested_at: required(timestamp, "now()"),
+  },
+  issues: {
+    id: id(), repository_id: required("bigint"), github_id: required("bigint"),
+    number: required("integer"), contributor_id: optional("bigint"), state: required("text"),
+    created_at: required(timestamp), closed_at: optional(timestamp), html_url: optional("text"),
+    ingested_at: required(timestamp, "now()"),
+  },
+  sync_runs: {
+    id: id(), trigger: required("text"), range_from: required(timestamp), range_to: required(timestamp),
+    started_at: required(timestamp), finished_at: optional(timestamp), status: required("text"),
+    repositories_ok: required("integer", "0"), repositories_failed: required("integer", "0"),
+    error_message: optional("text"), created_at: required(timestamp, "now()"),
+  },
+};
+
+const foreignKeys = [
+  ["repositories", "group_id", "groups", "id"],
+  ["commits", "repository_id", "repositories", "id"],
+  ["commits", "contributor_id", "contributors", "id"],
+  ["pull_requests", "repository_id", "repositories", "id"],
+  ["pull_requests", "contributor_id", "contributors", "id"],
+  ["issues", "repository_id", "repositories", "id"],
+  ["issues", "contributor_id", "contributors", "id"],
+];
+const uniques = [
+  ["groups", "name"], ["repositories", "github_id"], ["repositories", "node_id"],
+  ["contributors", "github_id"], ["commits", "repository_id", "sha"],
+  ["pull_requests", "repository_id", "github_id"], ["issues", "repository_id", "github_id"],
+];
+const indexes = {
+  repositories_tracked_idx: ["repositories", "tracked"],
+  repositories_group_id_idx: ["repositories", "group_id"],
+  commits_authored_at_idx: ["commits", "authored_at"],
+  commits_repository_time_idx: ["commits", "repository_id", "authored_at"],
+  commits_contributor_time_idx: ["commits", "contributor_id", "authored_at"],
+  prs_created_at_idx: ["pull_requests", "created_at"],
+  prs_repository_time_idx: ["pull_requests", "repository_id", "created_at"],
+  prs_contributor_time_idx: ["pull_requests", "contributor_id", "created_at"],
+  issues_created_at_idx: ["issues", "created_at"],
+  issues_repository_time_idx: ["issues", "repository_id", "created_at"],
+  issues_contributor_time_idx: ["issues", "contributor_id", "created_at"],
+  sync_runs_status_finished_idx: ["sync_runs", "status", "finished_at"],
+};
+
+const pool = new pg.Pool({ connectionString: databaseUrl });
+const problems = [];
+try {
+  const columns = (await pool.query(`SELECT table_name, column_name, data_type, is_nullable, column_default
+    FROM information_schema.columns WHERE table_schema = current_schema()`)).rows;
+  const foundColumns = new Map(columns.map(row => [`${row.table_name}.${row.column_name}`, row]));
+  for (const [table, expectedColumns] of Object.entries(tables)) {
+    const tableExists = await pool.query(`SELECT to_regclass(format('%I.%I', current_schema(), $1::text)) AS name`, [table]);
+    if (!tableExists.rows[0].name) problems.push(`missing table ${table}`);
+    for (const [column, expected] of Object.entries(expectedColumns)) {
+      const actual = foundColumns.get(`${table}.${column}`);
+      if (!actual) problems.push(`missing column ${table}.${column}`);
+      else {
+        if (actual.data_type !== expected.type) problems.push(`wrong type ${table}.${column}: ${actual.data_type}`);
+        if ((actual.is_nullable === "YES") !== expected.nullable) problems.push(`wrong nullability ${table}.${column}: ${actual.is_nullable}`);
+        const defaultMatches = expected.defaultValue === "serial"
+          ? actual.column_default?.startsWith("nextval(") && actual.column_default.includes(`${table}_id_seq`)
+          : actual.column_default === expected.defaultValue;
+        if (!defaultMatches) problems.push(`wrong default ${table}.${column}: ${actual.column_default ?? "NULL"}`);
+      }
+    }
+    for (const actual of columns.filter(row => row.table_name === table)) {
+      if (!(actual.column_name in expectedColumns)) problems.push(`unexpected column ${table}.${actual.column_name}`);
+    }
+  }
+
+  const constraints = (await pool.query(`SELECT c.contype, c.conrelid::regclass::text AS table_name,
+      c.confrelid::regclass::text AS referenced_table,
+      ARRAY(SELECT a.attname FROM unnest(c.conkey) WITH ORDINALITY AS k(attnum, ord)
+        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum ORDER BY k.ord)::text[] AS columns,
+      ARRAY(SELECT a.attname FROM unnest(c.confkey) WITH ORDINALITY AS k(attnum, ord)
+        JOIN pg_attribute a ON a.attrelid = c.confrelid AND a.attnum = k.attnum ORDER BY k.ord)::text[] AS referenced_columns
+    FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid
+    JOIN pg_namespace n ON n.oid = t.relnamespace WHERE n.nspname = current_schema()`)).rows;
+  for (const [table, column, target, targetColumn] of foreignKeys) {
+    if (!constraints.some(c => c.contype === "f" && c.table_name === table && c.referenced_table === target && c.columns.join() === column && c.referenced_columns.join() === targetColumn)) problems.push(`missing FK ${table}.${column} -> ${target}.${targetColumn}`);
+  }
+  for (const table of Object.keys(tables)) {
+    if (!constraints.some(c => c.contype === "p" && c.table_name === table && c.columns.join() === "id")) problems.push(`missing primary key ${table}(id)`);
+  }
+  for (const [table, ...columns] of uniques) {
+    if (!constraints.some(c => c.contype === "u" && c.table_name === table && c.columns.join() === columns.join())) problems.push(`missing UNIQUE ${table}(${columns.join(", ")})`);
+  }
+
+  const actualIndexes = (await pool.query(`SELECT t.relname AS table_name, i.relname AS index_name,
+      pg_get_indexdef(x.indexrelid) AS definition,
+      ARRAY(SELECT pg_get_indexdef(x.indexrelid, n, true) FROM generate_series(1, x.indnkeyatts) AS n ORDER BY n) AS columns
+    FROM pg_index x JOIN pg_class t ON t.oid = x.indrelid JOIN pg_class i ON i.oid = x.indexrelid
+    JOIN pg_namespace ns ON ns.oid = t.relnamespace WHERE ns.nspname = current_schema()`)).rows;
+  for (const [name, [table, ...columns]] of Object.entries(indexes)) {
+    if (!actualIndexes.some(index => index.index_name === name && index.table_name === table && index.columns.join() === columns.join())) problems.push(`missing index ${name} on ${table}(${columns.join(", ")})`);
+  }
+  if (!actualIndexes.some(index => index.index_name === "sync_runs_status_finished_idx" && index.definition.includes("(status, finished_at DESC)"))) problems.push("sync_runs_status_finished_idx must sort finished_at DESC");
+  if (problems.length) {
+    for (const problem of problems) console.error(problem);
+    process.exitCode = 1;
+  } else console.info("Database schema verified: 7 tables, columns, foreign keys, unique constraints, and indexes.");
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+} finally {
+  await pool.end();
+}

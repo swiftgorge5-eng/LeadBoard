@@ -8,17 +8,19 @@
     "start": "node --env-file-if-exists=../.env dist/server.js",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --exclude db-test/**"
   },
   "dependencies": {
     "@leadboard/contracts": "0.1.0",
     "express": "^5.2.1",
-    "node-cron": "^4.2.1"
+    "node-cron": "^4.2.1",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
-    "tsx": "^4.20.0",
     "@types/express": "^5.0.0",
+    "@types/pg": "^8.23.1",
+    "@types/supertest": "^6.0.0",
     "supertest": "^7.1.0",
-    "@types/supertest": "^6.0.0"
+    "tsx": "^4.20.0"
   }
 }
