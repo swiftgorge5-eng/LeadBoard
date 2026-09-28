@@ -88,13 +88,27 @@ afterAll(async () => {
 
 describe("Phase 1 mocked end-to-end smoke", () => {
   it("serves the built SPA and proxies real API responses through the frontend process", async () => {
-    const html = await (await fetch(`http://127.0.0.1:${frontendPort}/dashboard`)).text();
-    expect(html).toContain("id=\"root\"");
+    for (const route of ["/dashboard", "/contributors", "/contributors/alice"]) {
+      const html = await (await fetch(`http://127.0.0.1:${frontendPort}${route}`)).text();
+      expect(html).toContain("id=\"root\"");
+    }
 
     const summary = await (await fetch(
       `http://127.0.0.1:${frontendPort}/api/v1/organization/summary?range=30d`,
     )).json() as { repositories: number; commits: number; issues: number; total: number; dataStatus: string };
     expect(summary).toMatchObject({ repositories: 1, commits: 1, issues: 1, total: 2, dataStatus: "fresh" });
+
+    const repositories = await (await fetch(
+      `http://127.0.0.1:${frontendPort}/api/v1/organization/repositories?range=30d`,
+    )).json() as { items: Array<{ fullName: string; total: number }> };
+    expect(repositories.items).toEqual([
+      expect.objectContaining({ fullName: "leadboard-fixture/repo-a", total: 2 }),
+    ]);
+
+    const sync = await (await fetch(
+      `http://127.0.0.1:${frontendPort}/api/v1/sync/status`,
+    )).json() as { lastRunStatus: string; dataStatus: string };
+    expect(sync).toMatchObject({ lastRunStatus: "success", dataStatus: "fresh" });
 
     const leaderboard = await (await fetch(
       `http://127.0.0.1:${frontendPort}/api/v1/contributors/leaderboard?range=30d&metric=total`,
