@@ -1,5 +1,6 @@
 import {
   ContributorDetailSchema,
+  ActivityTrendResponseSchema,
   ContributorLeaderboardResponseSchema,
   GroupsResponseSchema,
   OrganizationSummaryResponseSchema,
@@ -109,6 +110,11 @@ export function createMockApiClient(): LeadBoardApiClient {
         lastRunStatus: "success",
         nextScheduledRunAt: null,
         dataStatus: "fresh",
+      });
+    },
+    async getActivityTrend(range) {
+      return mockResponse(ActivityTrendResponseSchema, {
+        range, granularity: range === "all" ? "month" : "day", items: [],
       });
     },
   };

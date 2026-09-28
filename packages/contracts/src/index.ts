@@ -18,7 +18,7 @@ export const GitHubActorRefSchema = z.object({
 export type GitHubActorRef = z.infer<typeof GitHubActorRefSchema>;
 
 export const AppConfigSchema = z.object({
-  githubToken: text, githubOrg: text, groupProperty: text,
+  githubToken: text.optional(), githubOrg: text, groupProperty: text,
   databaseUrl: z.url({ protocol: /^postgres(ql)?$/ }),
   port: positive.max(65535), ingestionCronSchedule: text,
   initialSyncDays: positive, syncOverlapMinutes: count, dataStaleAfterHours: positive,
@@ -124,6 +124,9 @@ export type LeaderboardMetric = z.infer<typeof LeaderboardMetricSchema>;
 export const GroupSummarySchema = z.object({ name: text });
 export type GroupSummary = z.infer<typeof GroupSummarySchema>;
 
+export const GroupOptionSchema = GroupSummarySchema.extend({ label: text.optional() });
+export type GroupOption = z.infer<typeof GroupOptionSchema>;
+
 const activityCounts = { commits: count, prs: count, issues: count, total: count };
 
 export const OrganizationActivitySummarySchema = z.object({ range: TimeRangeSchema, repositories: count, contributors: count, ...activityCounts });
@@ -132,7 +135,7 @@ export type OrganizationActivitySummary = z.infer<typeof OrganizationActivitySum
 export const RepositoryStatSchema = z.object({ githubId, fullName: text, group: text, contributors: count, ...activityCounts });
 export type RepositoryStat = z.infer<typeof RepositoryStatSchema>;
 
-export const ContributorRankSchema = z.object({ rank: positive, login: text, avatarUrl: webUrl.nullable(), ...activityCounts });
+export const ContributorRankSchema = z.object({ rank: positive, login: text, avatarUrl: webUrl.nullable(), activeDays: count.optional(), ...activityCounts });
 export type ContributorRank = z.infer<typeof ContributorRankSchema>;
 
 export const ContributorRepositoryStatSchema = z.object({ githubId, fullName: text, group: text, ...activityCounts });
@@ -140,9 +143,23 @@ export type ContributorRepositoryStat = z.infer<typeof ContributorRepositoryStat
 
 export const ContributorDetailSchema = z.object({
   login: text, avatarUrl: webUrl.nullable(), range: TimeRangeSchema,
+  activeDays: count.optional(),
   ...activityCounts, repositories: z.array(ContributorRepositoryStatSchema),
 });
 export type ContributorDetail = z.infer<typeof ContributorDetailSchema>;
+
+export const ActivityTrendPointSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}(-\d{2})?$/),
+  commits: count, prs: count, issues: count, total: count,
+});
+export type ActivityTrendPoint = z.infer<typeof ActivityTrendPointSchema>;
+
+export const ActivityTrendResponseSchema = z.object({
+  range: TimeRangeSchema,
+  granularity: z.enum(["day", "month"]),
+  items: z.array(ActivityTrendPointSchema),
+});
+export type ActivityTrendResponse = z.infer<typeof ActivityTrendResponseSchema>;
 
 export const HealthResponseSchema = z.object({ status: z.literal("ok") });
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
@@ -155,7 +172,7 @@ export type OrganizationSummary = z.infer<typeof OrganizationSummarySchema>;
 export const RepositoryStatsResponseSchema = z.object({ items: z.array(RepositoryStatSchema) });
 export type RepositoryStatsResponse = z.infer<typeof RepositoryStatsResponseSchema>;
 
-export const GroupsResponseSchema = z.object({ items: z.array(GroupSummarySchema) });
+export const GroupsResponseSchema = z.object({ items: z.array(GroupOptionSchema) });
 export type GroupsResponse = z.infer<typeof GroupsResponseSchema>;
 
 export const ContributorLeaderboardResponseSchema = z.object({

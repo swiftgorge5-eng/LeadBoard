@@ -1,12 +1,14 @@
 import {
   ApiErrorResponseSchema,
   ContributorDetailSchema,
+  ActivityTrendResponseSchema,
   ContributorLeaderboardResponseSchema,
   GroupsResponseSchema,
   OrganizationSummaryResponseSchema,
   RepositoryStatsResponseSchema,
   SyncStatusSchema,
   type ContributorDetail,
+  type ActivityTrendResponse,
   type ContributorLeaderboardResponse,
   type GroupsResponse,
   type LeaderboardMetric,
@@ -28,6 +30,7 @@ export interface LeadBoardApiClient {
   }): Promise<ContributorLeaderboardResponse>;
   getContributorDetail(username: string, range: TimeRange): Promise<ContributorDetail>;
   getSyncStatus(): Promise<SyncStatus>;
+  getActivityTrend(range: TimeRange, group?: string): Promise<ActivityTrendResponse>;
 }
 
 export class ApiClientError extends Error {
@@ -95,6 +98,11 @@ export function createApiClient(fetcher: typeof fetch = globalThis.fetch): LeadB
     },
     getSyncStatus() {
       return requestJson("/api/v1/sync/status", SyncStatusSchema);
+    },
+    getActivityTrend(range, group) {
+      const query = new URLSearchParams({ range });
+      if (group !== undefined) query.set("group", group);
+      return requestJson(`/api/v1/organization/trends?${query}`, ActivityTrendResponseSchema);
     },
   };
 }
