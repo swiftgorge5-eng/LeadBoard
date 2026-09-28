@@ -10,6 +10,8 @@
   "include": [
     "src",
     "test",
-    "db-test"
+    "db-test",
+    "integration-test",
+    "pipeline-test"
   ]
 }
