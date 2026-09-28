@@ -62,6 +62,12 @@ function safeErrorName(error: unknown): string {
 }
 
 export class SyncCoordinator {
+  private nextScheduledRunAt: string | null = null;
+
+  setNextScheduledRunAt(next: Date | null): void {
+    this.nextScheduledRunAt = next?.toISOString() ?? null;
+  }
+
   constructor(
     private readonly config: SyncConfig,
     private readonly dependencies: SyncDependencies,
@@ -214,7 +220,7 @@ export class SyncCoordinator {
     return SyncStatusSchema.parse({
       lastSuccessfulRunAt: successfulAt,
       lastRunStatus: lastFinished.rows[0]?.status ?? null,
-      nextScheduledRunAt: null,
+      nextScheduledRunAt: this.nextScheduledRunAt,
       dataStatus,
     });
   }
@@ -244,12 +250,28 @@ export async function getSyncStatus(): Promise<SyncStatus> {
 export function startSyncScheduler(
   coordinator: SyncCoordinator,
   schedule: string,
-): { stop(): void } {
+): { stop(): Promise<void> } {
+  let active: Promise<void> | null = null;
   const task = cron.schedule(schedule, () => {
-    void coordinator.runSync({ trigger: "scheduled" }).catch((error: unknown) => {
-      if (error instanceof SyncAlreadyRunningError) return;
-      console.error("Scheduled synchronization failed");
-    });
+    const run = coordinator.runSync({ trigger: "scheduled" })
+      .catch((error: unknown) => {
+        if (error instanceof SyncAlreadyRunningError) return;
+        console.error("Scheduled synchronization failed");
+      })
+      .then(() => undefined)
+      .finally(() => {
+        active = null;
+        coordinator.setNextScheduledRunAt(task.getNextRun());
+      });
+    active = run;
   });
-  return { stop: () => { void task.stop(); } };
+  coordinator.setNextScheduledRunAt(task.getNextRun());
+
+  return {
+    async stop(): Promise<void> {
+      await Promise.resolve(task.stop());
+      coordinator.setNextScheduledRunAt(null);
+      await active;
+    },
+  };
 }
