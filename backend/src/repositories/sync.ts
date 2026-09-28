@@ -15,8 +15,7 @@ export class RepositorySync {
     private readonly featuredRepositories: readonly string[] = FEATURED_REPOSITORIES,
   ) {}
 
-  async syncRepositories(input: RepositorySyncInput): Promise<RepositorySyncResult> {
-    const repositories = await this.client.listOrgRepositories(input.org);
+  async syncRepositories(_input: RepositorySyncInput): Promise<RepositorySyncResult> {
     const trackedRepositories: TrackedRepository[] = [];
 
     const scope = new Map<string, TrackedRepository>();
@@ -32,24 +31,8 @@ export class RepositorySync {
       archived: repository.archived,
     });
 
-    const tracked = await mapWithConcurrency(repositories, 6, async (repository) => {
-      if (repository.isFork || repository.isPrivate) return null;
-
-      const properties = await this.client.getRepositoryCustomProperties(repository.owner, repository.name);
-      const value = properties[input.groupProperty];
-      if (typeof value !== "string") return null;
-
-      const group = value.trim();
-      if (!group || group === "untracked") return null;
-      return mapTracked(repository, group);
-    });
-    for (const repository of tracked) {
-      if (repository) scope.set(repository.githubId, repository);
-    }
-
-    // The HUST board's `osd_sig` property defines the organization scope. A small
-    // curated set of public upstreams is added explicitly and never queried for
-    // the HUST-only custom property.
+    // Track only the explicitly curated public repositories until a local SIG
+    // or opt-in member scope has been agreed and configured.
     const featured = await Promise.all(this.featuredRepositories.map(async (fullName) => {
       const [owner, name] = fullName.split("/");
       const payload = await this.client.requestRest<unknown>("GET", `/repos/${encodeURIComponent(owner!)}/${encodeURIComponent(name!)}`);
@@ -75,9 +58,7 @@ export class RepositorySync {
       return mapTracked(parsed.data, FEATURED_GROUP);
     }));
     for (const repository of featured) {
-      if (repository && ![...scope.values()].some((item) => item.fullName.toLowerCase() === repository.fullName.toLowerCase())) {
-        scope.set(repository.githubId, repository);
-      }
+      if (repository) scope.set(repository.githubId, repository);
     }
 
     trackedRepositories.push(...scope.values());
@@ -85,17 +66,4 @@ export class RepositorySync {
 
     return { trackedRepositories, syncedAt: new Date().toISOString() };
   }
-}
-
-async function mapWithConcurrency<T, R>(items: readonly T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-    while (true) {
-      const index = next++;
-      if (index >= items.length) return;
-      results[index] = await fn(items[index]!);
-    }
-  }));
-  return results;
 }

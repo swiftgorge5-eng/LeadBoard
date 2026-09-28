@@ -1,4 +1,4 @@
-/** Public upstream projects shown alongside the HUST Open Atom Club scope. */
+/** Public upstream projects included in the current leaderboard scope. */
 export const FEATURED_REPOSITORIES = [
   "torvalds/linux",
   "kubernetes/kubernetes",

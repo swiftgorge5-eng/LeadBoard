@@ -32,7 +32,7 @@ function bounds(range: TimeRange, now = new Date()): RangeBounds {
 }
 
 /** Every row in `events` is one GitHub activity action. A PR/issue close counts
- * as a second action, matching the HUST board's opened + closed convention. */
+ * as a second action. */
 const EVENTS_CTE = `
   WITH scope_repositories AS (
     SELECT r.id, r.github_id, r.full_name, COALESCE(g.name, 'ungrouped') AS group_name
