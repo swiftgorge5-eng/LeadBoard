@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { GitHubActivity, RepositorySyncResult } from "@leadboard/contracts";
+import type { CommitActivity, GitHubActivity, RepositorySyncResult } from "@leadboard/contracts";
 import { AnalyticsService } from "../src/analytics/index.js";
 import { getDbPool } from "../src/db/index.js";
 import { applyRepositoryScope, ingestActivities } from "../src/ingestion/index.js";
@@ -30,7 +30,7 @@ const repoOld = {
 };
 const syncedAt = NOW.toISOString();
 
-function commit(repo: string, id: string, who: typeof actor[keyof typeof actor], at: string): GitHubActivity {
+function commit(repo: string, id: string, who: typeof actor[keyof typeof actor], at: string): CommitActivity {
   return {
     kind: "commit", repositoryGithubId: repo, externalId: id, actor: who,
     occurredAt: at, additions: 1, deletions: 0, isMerge: false, rawUrl: null,
