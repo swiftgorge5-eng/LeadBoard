@@ -8,7 +8,7 @@
     "start": "node --env-file-if-exists=../.env dist/server.js",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --exclude db-test/** --exclude integration-test/** --exclude pipeline-test/**"
+    "test": "vitest run test"
   },
   "dependencies": {
     "@leadboard/contracts": "0.1.0",
