@@ -66,3 +66,34 @@ footer { padding: 26px 0; border-top: 1px solid #d8ded5; font-size: 12px; color:
   .stat-grid { grid-template-columns: 1fr; }
   footer { flex-wrap: wrap; }
 }
+
+
+.site-nav { display: flex; gap: 18px; margin-left: auto; }
+.site-nav a { color: #526757; text-decoration: none; font-size: 13px; font-weight: 600; }
+.site-nav a:hover { color: #173a31; }
+.page-section { min-height: 620px; padding: 52px 0 70px; }
+.page-title { margin: 8px 0 20px; font-size: clamp(34px, 5vw, 52px); }
+.compact-filters { border-top: 0; margin-bottom: 28px; }
+.table-wrap { width: 100%; overflow-x: auto; border: 1px solid #d8ded5; border-radius: 10px; background: #fff; }
+.data-table { width: 100%; min-width: 720px; border-collapse: collapse; }
+.data-table th, .data-table td { padding: 15px 16px; text-align: left; border-bottom: 1px solid #e6ebe5; font-size: 13px; }
+.data-table th { color: #617167; font-weight: 650; background: #fafbf8; }
+.data-table tbody tr:last-child td { border-bottom: 0; }
+.rank-cell { color: #617167; font-variant-numeric: tabular-nums; }
+.contributor-link { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 650; }
+.avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.avatar-placeholder { display: inline-flex; align-items: center; justify-content: center; background: #e4ece5; color: #327754; }
+.subheading { margin-top: 42px; }
+.contributor-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 12px; }
+.freshness-card { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 30px; padding: 14px 16px; border: 1px solid #d8ded5; border-radius: 10px; background: #fff; font-size: 13px; color: #617167; }
+.freshness-card > div { display: flex; align-items: center; gap: 9px; color: #173a31; }
+.freshness-dot { width: 8px; height: 8px; border-radius: 50%; background: #7a857c; }
+.freshness-card[data-status="fresh"] .freshness-dot { background: #327754; }
+.freshness-card[data-status="stale"] .freshness-dot { background: #b47a28; }
+.freshness-card[data-status="missing"] .freshness-dot { background: #a44c25; }
+
+@media (max-width: 760px) {
+  .site-nav { order: 3; width: 100%; margin-left: 0; }
+  .freshness-card { align-items: flex-start; flex-direction: column; }
+  .contributor-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
