@@ -891,3 +891,39 @@ Dashboard
 - 第二次 overlap sync 不重复计数；
 - Dashboard 展示 Contributor、Repository Activity 和 Freshness；
 - 所有跨模块类型来自 `@leadboard/contracts`。
+
+
+## 17. Phase 1 最短运行步骤
+
+Phase 1 完整实现后，本地从空环境验证：
+
+```bash
+npm install
+docker compose up -d --wait postgres
+npm run db:migrate
+npm run db:verify
+npm run sync:once
+npm run build
+npm start
+```
+
+另开终端启动前端：
+
+```bash
+npm run preview --workspace=@leadboard/frontend
+```
+
+默认页面为 `/dashboard`，贡献者排行榜为 `/contributors`。后端提供 `/health` 与六个 `/api/v1` 接口。
+
+完整自动验收：
+
+```bash
+npm run check:phase1
+npm run typecheck
+npm test
+npm run test:integration
+npm run test:pipeline
+npm run test:e2e
+```
+
+真实 GitHub 验收使用专用测试组织和 Token，通过 `LEADBOARD_E2E_GITHUB_TOKEN` / `LEADBOARD_E2E_GITHUB_ORG` 运行 `npm run test:e2e:live`。不要使用个人 Token，也不要把凭据写入仓库或日志。
