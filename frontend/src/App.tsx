@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, Route, Routes } from "react-router";
 import type { LeadBoardApiClient } from "./api/client";
+import { ContributorDetailPage } from "./pages/ContributorDetailPage";
+import { ContributorLeaderboardPage } from "./pages/ContributorLeaderboardPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { fetchHealth } from "./health";
 
@@ -20,6 +22,10 @@ export function App({ api, isMock = false }: { api: LeadBoardApiClient; isMock?:
     <main>
       <header className="site-header">
         <Link className="wordmark" to="/dashboard">LeadBoard<span>↗</span></Link>
+        <nav className="site-nav" aria-label="主导航">
+          <Link to="/dashboard">Dashboard</Link>
+          <Link to="/contributors">贡献者</Link>
+        </nav>
         <span className={`status status-${status}`} role="status">
           <span aria-hidden="true" className="dot" />
           {status === "loading" ? "正在检查后端…" : status === "ok" ? "后端已连接" : "后端暂未连接"}
@@ -29,6 +35,8 @@ export function App({ api, isMock = false }: { api: LeadBoardApiClient; isMock?:
       <Routes>
         <Route path="/" element={<DashboardPage api={api} isMock={isMock} />} />
         <Route path="/dashboard" element={<DashboardPage api={api} isMock={isMock} />} />
+        <Route path="/contributors" element={<ContributorLeaderboardPage api={api} />} />
+        <Route path="/contributors/:username" element={<ContributorDetailPage api={api} />} />
         <Route path="*" element={<section className="not-found"><h1>页面不存在</h1><Link to="/dashboard">返回 Dashboard</Link></section>} />
       </Routes>
 
