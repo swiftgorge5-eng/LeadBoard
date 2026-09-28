@@ -22,14 +22,15 @@ try {
   const shutdown = () => {
     if (shuttingDown) return;
     shuttingDown = true;
-    scheduler.stop();
     const timer = setTimeout(() => process.exit(1), 10_000);
     timer.unref();
     server.close(() => {
-      void getDbPool().end().finally(() => {
-        clearTimeout(timer);
-        process.exit(0);
-      });
+      void scheduler.stop()
+        .then(() => getDbPool().end())
+        .finally(() => {
+          clearTimeout(timer);
+          process.exit(0);
+        });
     });
   };
   process.once("SIGINT", shutdown);
