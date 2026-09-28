@@ -26,12 +26,7 @@
     "test:bootstrap": "node scripts/bootstrap-smoke.mjs",
     "db:migrate": "node --env-file-if-exists=.env scripts/db-migrate.mjs",
     "db:verify": "node --env-file-if-exists=.env scripts/db-verify.mjs",
-    "test:db": "node --env-file-if-exists=.env ./node_modules/vitest/vitest.mjs run --root backend db-test",
-    "sync:once": "node --env-file-if-exists=.env --import tsx backend/src/sync/once.ts",
-    "test:integration": "node --env-file-if-exists=.env ./node_modules/vitest/vitest.mjs run --root backend --maxWorkers=1 integration-test",
-    "test:pipeline": "node --env-file-if-exists=.env ./node_modules/vitest/vitest.mjs run --root backend pipeline-test/pipeline.test.ts",
-    "test:e2e": "node --env-file-if-exists=.env ./node_modules/vitest/vitest.mjs run tests/e2e/mock.test.ts",
-    "test:e2e:live": "node --env-file-if-exists=.env ./node_modules/vitest/vitest.mjs run tests/e2e/live.test.ts"
+    "test:db": "node --env-file-if-exists=.env ./node_modules/vitest/vitest.mjs run --root backend db-test"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

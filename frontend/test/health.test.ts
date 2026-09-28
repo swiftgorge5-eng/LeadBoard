@@ -32,6 +32,6 @@ it("renders an accessible Dashboard loading state and labels mock data", () => {
     ),
   );
   expect(html).toContain('role="status"');
-  expect(html).toContain("正在加载数据");
-  expect(html).toContain("当前展示模拟数据");
+  expect(html).toContain("正在读取最新排名");
+  expect(html).toContain("开发预览数据，仅供界面调试");
 });

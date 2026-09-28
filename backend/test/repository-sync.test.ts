@@ -18,10 +18,21 @@ function mockClient(repositories: GitHubRepositoryRef[], properties: Record<stri
   const listOrgRepositories = vi.fn(async () => repositories);
   const getRepositoryCustomProperties = vi.fn(async (_owner: string, name: string) => properties[name] ?? {});
   const client = { listOrgRepositories, getRepositoryCustomProperties } as unknown as GitHubClient;
-  return { sync: new RepositorySync(client), listOrgRepositories, getRepositoryCustomProperties };
+  return { sync: new RepositorySync(client, []), listOrgRepositories, getRepositoryCustomProperties };
 }
 
 describe("RepositorySync", () => {
+  it("adds a public watched repository alongside organization repositories", async () => {
+    const requestRest = vi.fn(async () => ({
+      id: 2002, node_id: "R_2002", owner: { login: "torvalds" }, name: "linux",
+      full_name: "torvalds/linux", default_branch: "master",
+      html_url: "https://github.com/torvalds/linux", archived: false, fork: false, private: false,
+    }));
+    const client = { listOrgRepositories: vi.fn(async () => []), requestRest } as unknown as GitHubClient;
+    const result = await new RepositorySync(client, ["torvalds/linux"]).syncRepositories(input);
+    expect(result.trackedRepositories).toMatchObject([{ fullName: "torvalds/linux", group: "featured-open-source" }]);
+    expect(requestRest).toHaveBeenCalledWith("GET", "/repos/torvalds/linux");
+  });
   it("includes a tracked repository with every shared contract field", async () => {
     const { sync, listOrgRepositories, getRepositoryCustomProperties } = mockClient(
       [repo("core")], { core: { leadboard_group: "platform" } },
@@ -79,7 +90,7 @@ describe("RepositorySync", () => {
       .mockResolvedValueOnce([repo("old-name")])
       .mockResolvedValueOnce([repo("new-name")]);
     const getRepositoryCustomProperties = vi.fn().mockResolvedValue({ leadboard_group: "platform" });
-    const sync = new RepositorySync({ listOrgRepositories, getRepositoryCustomProperties } as unknown as GitHubClient);
+    const sync = new RepositorySync({ listOrgRepositories, getRepositoryCustomProperties } as unknown as GitHubClient, []);
     const before = (await sync.syncRepositories(input)).trackedRepositories[0]!;
     const after = (await sync.syncRepositories(input)).trackedRepositories[0]!;
     expect(after.githubId).toBe(before.githubId);
@@ -134,7 +145,7 @@ describe("RepositorySync", () => {
       .mockResolvedValueOnce(response([raw("second", 1002)]))
       .mockImplementation(async () => response([{ property_name: "leadboard_group", value: "platform" }]));
     const client = new GitHubApiClient({ githubToken: "fixture-token" }, { fetch: fetchMock });
-    const result = await new RepositorySync(client).syncRepositories(input);
+    const result = await new RepositorySync(client, []).syncRepositories(input);
     expect(result.trackedRepositories.map((item) => item.githubId)).toEqual(["1001", "1002"]);
     expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(fetchMock.mock.calls[1]?.[0]).toBe(page2);
@@ -146,7 +157,7 @@ describe("RepositorySync", () => {
       .mockResolvedValueOnce(new Response("[]", { headers: { link: `<${page2}>; rel="next"` } }))
       .mockResolvedValueOnce(new Response("{}", { status: 404 }));
     const client = new GitHubApiClient({ githubToken: "fixture-token" }, { fetch: fetchMock });
-    await expect(new RepositorySync(client).syncRepositories(input))
+    await expect(new RepositorySync(client, []).syncRepositories(input))
       .rejects.toMatchObject({ code: "HTTP_ERROR", status: 404 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });

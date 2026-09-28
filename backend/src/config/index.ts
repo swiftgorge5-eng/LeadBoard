@@ -8,13 +8,13 @@ function numericSetting(value: string | undefined, fallback: number): number {
 /** Pure loader: no IO and no logging of credential-bearing input. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const result = AppConfigSchema.safeParse({
-    githubToken: env.GITHUB_TOKEN,
+    githubToken: env.GITHUB_TOKEN?.trim() || undefined,
     githubOrg: env.GITHUB_ORG,
-    groupProperty: env.LEADBOARD_GROUP_PROPERTY ?? "leadboard_group",
+    groupProperty: env.LEADBOARD_GROUP_PROPERTY ?? "osd_sig",
     databaseUrl: env.DATABASE_URL,
     port: numericSetting(env.PORT, 3000),
     ingestionCronSchedule: env.INGESTION_CRON_SCHEDULE ?? "0 */6 * * *",
-    initialSyncDays: numericSetting(env.INITIAL_SYNC_DAYS, 30),
+    initialSyncDays: numericSetting(env.INITIAL_SYNC_DAYS, 90),
     syncOverlapMinutes: numericSetting(env.SYNC_OVERLAP_MINUTES, 10),
     dataStaleAfterHours: numericSetting(env.DATA_STALE_AFTER_HOURS, 12),
   });
