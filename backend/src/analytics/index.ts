@@ -110,13 +110,13 @@ export class AnalyticsService {
     }>(
       EVENTS_CTE + `
       SELECT r.github_id::text AS github_id, r.full_name, g.name AS group_name,
-        count(f.*) FILTER (WHERE f.kind = 'commit') AS commits,
-        count(f.*) FILTER (WHERE f.kind = 'pull_request') AS prs,
-        count(f.*) FILTER (WHERE f.kind = 'issue') AS issues,
+        count(f.repository_id) FILTER (WHERE f.kind = 'commit') AS commits,
+        count(f.repository_id) FILTER (WHERE f.kind = 'pull_request') AS prs,
+        count(f.repository_id) FILTER (WHERE f.kind = 'issue') AS issues,
         count(DISTINCT f.contributor_id) FILTER (
           WHERE f.contributor_id IS NOT NULL AND coalesce(con.is_bot, FALSE) = FALSE
         ) AS contributors,
-        count(f.*) AS total
+        count(f.repository_id) AS total
       FROM repositories r
       LEFT JOIN groups g ON g.id = r.group_id
       LEFT JOIN filtered f ON f.repository_id = r.id
@@ -188,16 +188,16 @@ export class AnalyticsService {
     }>(
       EVENTS_CTE + `
       SELECT r.github_id::text AS github_id, r.full_name, g.name AS group_name,
-        count(f.*) FILTER (WHERE f.kind = 'commit') AS commits,
-        count(f.*) FILTER (WHERE f.kind = 'pull_request') AS prs,
-        count(f.*) FILTER (WHERE f.kind = 'issue') AS issues,
-        count(f.*) AS total
+        count(f.repository_id) FILTER (WHERE f.kind = 'commit') AS commits,
+        count(f.repository_id) FILTER (WHERE f.kind = 'pull_request') AS prs,
+        count(f.repository_id) FILTER (WHERE f.kind = 'issue') AS issues,
+        count(f.repository_id) AS total
       FROM repositories r
       LEFT JOIN groups g ON g.id = r.group_id
       LEFT JOIN filtered f ON f.repository_id = r.id AND f.contributor_id = $3
       WHERE r.tracked = TRUE
       GROUP BY r.id, r.github_id, r.full_name, g.name
-      HAVING count(f.*) > 0
+      HAVING count(f.repository_id) > 0
       ORDER BY r.full_name ASC`,
       [bounds.from, bounds.to, actor.id],
     );
@@ -211,6 +211,7 @@ export class AnalyticsService {
       issues: safeNumber(row.issues),
       total: safeNumber(row.total),
     }));
+    if (repositories.length === 0) return null;
     const commits = repositories.reduce((sum, row) => sum + row.commits, 0);
     const prs = repositories.reduce((sum, row) => sum + row.prs, 0);
     const issues = repositories.reduce((sum, row) => sum + row.issues, 0);
