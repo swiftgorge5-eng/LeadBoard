@@ -195,7 +195,7 @@ export class EmailVerificationService implements EmailVerificationApi {
     return { sent: true, retryAfterSeconds: 60, expiresInSeconds: 600 };
   }
 
-  async verifyCode(rawEmail: string, code: string): Promise<{ verified: true }> {
+  async verifyCode(rawEmail: string, code: string): Promise<{ verified: true; memberId: string }> {
     const email = normalizeEmail(rawEmail);
     const domain = emailDomain(email);
     if (!email.includes("@") || !isAllowedDomain(domain, this.domains)) {
