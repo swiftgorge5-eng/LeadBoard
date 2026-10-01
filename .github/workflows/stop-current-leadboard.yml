@@ -17,14 +17,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "Stopping leadboard.service only; PostgreSQL and nginx are left running."
-          sudo -n systemctl stop leadboard.service
+          echo "Stopping and disabling leadboard.service only; PostgreSQL and nginx are left running."
+          sudo -n systemctl disable --now leadboard.service
           sleep 2
           if systemctl is-active --quiet leadboard.service; then
             echo "leadboard.service is still active"
             exit 1
           fi
-          echo "leadboard.service is stopped."
+          echo "leadboard.service is stopped and disabled."
           echo
           echo "Port 3000 check:"
           if ss -lnt | awk '{print $4}' | grep -qE '(^|:)3000$'; then
