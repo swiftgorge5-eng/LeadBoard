@@ -39,8 +39,25 @@ jobs:
           tar -xzf "$archive" -C "$work/src" --strip-components=1
           cd "$work/src"
 
+          echo "=== Use server Node 24 runtime ==="
+          nodebin="$work/node24bin"
+          mkdir -p "$nodebin"
+          ln -s /usr/local/bin/leadboard-node "$nodebin/node"
+          cat > "$nodebin/npm" <<'NPMWRAP'
+          #!/usr/bin/env bash
+          exec /usr/local/bin/leadboard-node /usr/bin/npm "$@"
+          NPMWRAP
+          chmod +x "$nodebin/npm"
+          export PATH="$nodebin:$PATH"
+          node --version
+          npm --version
+
           echo "=== Install and build ==="
-          npm ci
+          npm ci --include=optional
+          if [ -f node_modules/rolldown/package.json ] && [ ! -d node_modules/@rolldown/binding-linux-x64-gnu ]; then
+            binding_version="$(node -p "require('./node_modules/rolldown/package.json').optionalDependencies['@rolldown/binding-linux-x64-gnu']")"
+            npm install --no-save "@rolldown/binding-linux-x64-gnu@$binding_version"
+          fi
           npm run build
 
           echo "=== Create immutable release ==="
