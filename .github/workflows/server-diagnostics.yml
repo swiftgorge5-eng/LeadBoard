@@ -1,0 +1,68 @@
+name: LeadBoard Server Diagnostics
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    name: Inspect self-hosted LeadBoard server
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 10
+
+    steps:
+      - name: Basic host information
+        shell: bash
+        run: |
+          set +e
+          echo "=== identity ==="
+          whoami
+          hostname
+          uname -a
+          echo
+          echo "=== os ==="
+          cat /etc/os-release 2>/dev/null || true
+          echo
+          echo "=== disk ==="
+          df -h
+          echo
+          echo "=== memory ==="
+          free -h 2>/dev/null || true
+
+      - name: Listening ports
+        shell: bash
+        run: |
+          set +e
+          echo "=== listening TCP ports ==="
+          ss -lntp 2>/dev/null || sudo -n ss -lntp 2>/dev/null || true
+
+      - name: Running service overview
+        shell: bash
+        run: |
+          set +e
+          echo "=== running systemd services ==="
+          systemctl list-units --type=service --state=running --no-pager 2>/dev/null | head -100 || true
+          echo
+          echo "=== docker containers ==="
+          docker ps --format 'table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Ports}}' 2>/dev/null ||             sudo -n docker ps --format 'table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Ports}}' 2>/dev/null || true
+          echo
+          echo "=== pm2 ==="
+          pm2 list 2>/dev/null || true
+
+      - name: Locate LeadBoard deployment
+        shell: bash
+        run: |
+          set +e
+          echo "=== likely LeadBoard directories ==="
+          find /root /opt /srv /var/www /home -maxdepth 3 -type d             \( -iname 'LeadBoard' -o -iname '*leadboard*' \) 2>/dev/null | head -100 || true
+
+      - name: Runner context
+        shell: bash
+        run: |
+          echo "=== runner ==="
+          echo "RUNNER_NAME=$RUNNER_NAME"
+          echo "RUNNER_OS=$RUNNER_OS"
+          echo "RUNNER_ARCH=$RUNNER_ARCH"
+          echo "GITHUB_REPOSITORY=$GITHUB_REPOSITORY"
