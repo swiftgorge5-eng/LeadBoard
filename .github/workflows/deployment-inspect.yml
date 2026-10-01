@@ -1,0 +1,46 @@
+name: LeadBoard Deployment Inspect
+
+on:
+  push:
+    paths:
+      - ".github/workflows/deployment-inspect.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 10
+    steps:
+      - name: Inspect LeadBoard service
+        shell: bash
+        run: |
+          set +e
+          echo "=== sudo check ==="
+          sudo -n true && echo "SUDO_NOPASSWD=yes" || echo "SUDO_NOPASSWD=no"
+          echo
+          echo "=== leadboard.service ==="
+          sudo -n systemctl cat leadboard.service 2>&1 || systemctl cat leadboard.service 2>&1 || true
+          echo
+          echo "=== leadboard status ==="
+          systemctl status leadboard.service --no-pager 2>&1 || true
+          echo
+          echo "=== nginx config ==="
+          sudo -n nginx -T 2>&1 | sed -n '1,260p' || true
+          echo
+          echo "=== local HTTP ==="
+          curl -sS -i --max-time 5 http://127.0.0.1/ | head -80 || true
+          echo
+          echo "=== local backend ==="
+          curl -sS -i --max-time 5 http://127.0.0.1:3000/health | head -80 || true
+          echo
+          echo "=== /opt/leadboard ==="
+          ls -la /opt/leadboard 2>&1 || true
+          echo
+          echo "=== git status ==="
+          if [ -d /opt/leadboard/.git ]; then
+            git -C /opt/leadboard status --short --branch 2>&1 || true
+            git -C /opt/leadboard remote -v 2>&1 || true
+          fi
