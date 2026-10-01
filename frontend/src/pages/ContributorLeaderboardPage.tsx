@@ -48,14 +48,14 @@ export function ContributorLeaderboardPage({ api }: { api: LeadBoardApiClient })
     <div className="page-canvas">
       <section className="page-hero compact-hero">
         <div>
-          <span className="hero-badge">CONTRIBUTORS</span>
-          <h1>贡献者榜单</h1>
+          <span className="hero-badge">CAMPUS MAKERS</span>
+          <h1>校内开源达人</h1>
           <p>每一次提交、协作和讨论，都会在这里留下清晰的记录。</p>
         </div>
         <div className="hero-stamp" aria-hidden="true">🏆</div>
       </section>
 
-      <section className="filter-card leaderboard-filters" aria-label="贡献者排行榜筛选">
+      <section className="filter-card leaderboard-filters" aria-label="校内开源达人筛选">
         <div>
           <span className="filter-title">筛选榜单</span>
           <span className="filter-caption">当前按 {metricLabel[metric]} 排序</span>
@@ -90,8 +90,8 @@ export function ContributorLeaderboardPage({ api }: { api: LeadBoardApiClient })
           <>
             <div className="section-title-row">
               <div>
-                <p className="section-kicker">TOP CONTRIBUTORS</p>
-                <h2>本期高光贡献者</h2>
+                <p className="section-kicker">OPEN SOURCE MAKERS</p>
+                <h2>本期活跃达人</h2>
                 <p>排名依据公开 GitHub 活动统计，不代表对个人能力的评价。</p>
               </div>
               <span className="count-pill">{state.leaderboard.items.length} 位贡献者</span>
@@ -117,7 +117,7 @@ export function ContributorLeaderboardPage({ api }: { api: LeadBoardApiClient })
 
             <section className="panel ranking-panel">
               <div className="panel-heading">
-                <div><p className="section-kicker">完整榜单</p><h2>贡献者排名</h2></div>
+                <div><p className="section-kicker">完整榜单</p><h2>校内开源达人</h2></div>
               </div>
               <div className="ranking-list">
                 {state.leaderboard.items.map((item) => (
