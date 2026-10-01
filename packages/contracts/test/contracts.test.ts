@@ -42,7 +42,8 @@ const fixtures = [
   [c.EmailCodeRequestSchema, { email: "student@fudan.edu.cn" }],
   [c.EmailCodeVerifyRequestSchema, { email: "student@fudan.edu.cn", code: "012345" }],
   [c.EmailCodeSendResponseSchema, { sent: true, retryAfterSeconds: 60, expiresInSeconds: 600 }],
-  [c.EmailCodeVerifyResponseSchema, { verified: true }],
+  [c.GitHubLinkInfoSchema, { available: false }],
+  [c.EmailCodeVerifyResponseSchema, { verified: true, githubLink: { available: false } }],
   [c.ApiErrorResponseSchema, { error: { code: "INTERNAL_ERROR", message: "Request failed" } }],
 ] as const;
 
