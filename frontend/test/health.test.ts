@@ -23,7 +23,7 @@ it.each([
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response()));
   await expect(fetchHealth()).rejects.toThrow();
 });
-it("renders an accessible Dashboard loading state and labels mock data", () => {
+it("renders the campus project board and service status", () => {
   const html = renderToStaticMarkup(
     createElement(MemoryRouter, null,
       createElement(FiltersProvider, null,
@@ -32,6 +32,7 @@ it("renders an accessible Dashboard loading state and labels mock data", () => {
     ),
   );
   expect(html).toContain('role="status"');
-  expect(html).toContain("正在加载数据");
-  expect(html).toContain("当前展示模拟数据");
+  expect(html).toContain("校内开源项目");
+  expect(html).toContain("加上我的项目");
+  expect(html).toContain("项目顺序只是展示顺序，不代表排名");
 });
