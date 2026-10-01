@@ -34,44 +34,56 @@ export function ContributorDetailPage({ api }: { api: LeadBoardApiClient }) {
   }, [api, username, range, retry]);
 
   return (
-    <section className="page-section">
-      <div className="section-heading">
-        <div><p className="eyebrow">CONTRIBUTOR DETAIL</p><h1 className="page-title">{username || "贡献者详情"}</h1></div>
-        <Link to="/contributors">返回排行榜</Link>
-      </div>
-      <div className="filters compact-filters">
-        <label>时间范围
+    <div className="page-canvas">
+      <section className="profile-hero">
+        <Link className="back-link" to="/contributors">← 返回贡献者榜单</Link>
+        {state.status === "ready" && state.detail.avatarUrl
+          ? <img className="profile-avatar" src={state.detail.avatarUrl} alt="" />
+          : <span className="profile-avatar avatar-placeholder" aria-hidden="true">{username.slice(0, 1).toUpperCase()}</span>}
+        <div className="profile-copy">
+          <span className="hero-badge">CONTRIBUTOR PROFILE</span>
+          <h1>{username || "贡献者详情"}</h1>
+          <p>从公开 GitHub 活动中汇总的个人贡献记录。</p>
+        </div>
+        <label className="profile-range">时间范围
           <select value={range} onChange={(event) => setRange(TimeRangeSchema.parse(event.target.value))}>
             <option value="7d">最近 7 天</option><option value="30d">最近 30 天</option>
             <option value="90d">最近 90 天</option><option value="all">全部历史</option>
           </select>
         </label>
-      </div>
+      </section>
 
-      {state.status === "loading" && <LoadingState label="正在加载贡献者详情…" />}
-      {state.status === "error" && <ErrorState message={state.message} onRetry={() => setRetry((value) => value + 1)} />}
-      {state.status === "ready" && (
-        <>
-          <div className="stat-grid contributor-summary">
-            <div className="stat"><span>Commit</span><strong>{state.detail.commits}</strong></div>
-            <div className="stat"><span>PR</span><strong>{state.detail.prs}</strong></div>
-            <div className="stat"><span>Issue</span><strong>{state.detail.issues}</strong></div>
-            <div className="stat"><span>总活动</span><strong>{state.detail.total}</strong></div>
-          </div>
-          <div className="section-heading subheading"><div><p className="eyebrow">REPOSITORIES</p><h2>仓库贡献</h2></div></div>
-          {state.detail.repositories.length === 0 ? <EmptyState label="当前时间范围内没有仓库活动" /> : (
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead><tr><th>仓库</th><th>分组</th><th>Commit</th><th>PR</th><th>Issue</th><th>总活动</th></tr></thead>
-                <tbody>{state.detail.repositories.map((item) => (
-                  <tr key={item.githubId}><td>{item.fullName}</td><td>{item.group}</td>
-                    <td>{item.commits}</td><td>{item.prs}</td><td>{item.issues}</td><td><strong>{item.total}</strong></td></tr>
-                ))}</tbody>
-              </table>
+      <section className="dashboard-content">
+        {state.status === "loading" && <LoadingState label="正在加载贡献者详情…" />}
+        {state.status === "error" && <ErrorState message={state.message} onRetry={() => setRetry((value) => value + 1)} />}
+        {state.status === "ready" && (
+          <>
+            <div className="metric-grid detail-metrics">
+              <article className="metric-card metric-purple"><span>Commit</span><strong>{state.detail.commits}</strong><small>代码提交</small></article>
+              <article className="metric-card metric-indigo"><span>Pull Request</span><strong>{state.detail.prs}</strong><small>协作变更</small></article>
+              <article className="metric-card metric-blue"><span>Issue</span><strong>{state.detail.issues}</strong><small>讨论与问题</small></article>
+              <article className="metric-card metric-mint"><span>总活动</span><strong>{state.detail.total}</strong><small>公开贡献记录</small></article>
             </div>
-          )}
-        </>
-      )}
-    </section>
+
+            <section className="panel repository-panel">
+              <div className="panel-heading">
+                <div><p className="section-kicker">REPOSITORIES</p><h2>仓库贡献</h2><p>看看贡献主要发生在哪些项目里。</p></div>
+              </div>
+              {state.detail.repositories.length === 0 ? <EmptyState label="当前时间范围内没有仓库活动" /> : (
+                <div className="table-wrap">
+                  <table className="data-table">
+                    <thead><tr><th>仓库</th><th>分组</th><th>Commit</th><th>PR</th><th>Issue</th><th>总活动</th></tr></thead>
+                    <tbody>{state.detail.repositories.map((item) => (
+                      <tr key={item.githubId}><td><strong>{item.fullName}</strong></td><td><span className="tag">{item.group}</span></td>
+                        <td>{item.commits}</td><td>{item.prs}</td><td>{item.issues}</td><td><strong>{item.total}</strong></td></tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </>
+        )}
+      </section>
+    </div>
   );
 }
