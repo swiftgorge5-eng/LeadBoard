@@ -22,7 +22,7 @@ export interface EmailVerificationApi {
     retryAfterSeconds: number;
     expiresInSeconds: number;
   }>;
-  verifyCode(email: string, code: string): Promise<{ verified: true }>;
+  verifyCode(email: string, code: string): Promise<{ verified: true; memberId: string }>;
 }
 
 export class EmailAuthError extends Error {
@@ -246,7 +246,7 @@ export class EmailVerificationService implements EmailVerificationApi {
         "UPDATE email_verification_challenges SET used_at=$2 WHERE id=$1",
         [challenge.id, now],
       );
-      await client.query(
+      const member = await client.query<{ id: string }>(
         `INSERT INTO members
            (email_fingerprint, email_domain, verification_status, verified_at, last_reverified_at, created_at, updated_at)
          VALUES ($1,$2,'verified',$3,$3,$3,$3)
@@ -255,14 +255,15 @@ export class EmailVerificationService implements EmailVerificationApi {
            verification_status='verified',
            verified_at=COALESCE(members.verified_at, EXCLUDED.verified_at),
            last_reverified_at=EXCLUDED.last_reverified_at,
-           updated_at=EXCLUDED.updated_at`,
+           updated_at=EXCLUDED.updated_at
+         RETURNING id::text`,
         [fingerprint, domain, now],
       );
-      return { kind: "verified" as const };
+      return { kind: "verified" as const, memberId: member.rows[0]!.id };
     });
 
     switch (result.kind) {
-      case "verified": return { verified: true };
+      case "verified": return { verified: true, memberId: result.memberId };
       case "used": throw new EmailAuthError("VERIFICATION_CODE_USED", 400, "该验证码已使用，请重新获取");
       case "expired": throw new EmailAuthError("VERIFICATION_CODE_EXPIRED", 400, "验证码已过期，请重新获取");
       case "locked": throw new EmailAuthError("VERIFICATION_ATTEMPTS_EXCEEDED", 429, "验证码尝试次数过多，请重新获取");
