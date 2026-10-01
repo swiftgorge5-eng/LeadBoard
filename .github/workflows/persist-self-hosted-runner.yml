@@ -1,0 +1,49 @@
+name: Persist LeadBoard Self-Hosted Runner
+
+on:
+  push:
+    paths:
+      - ".github/workflows/persist-self-hosted-runner.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  persist:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 5
+    steps:
+      - name: Install runner as a systemd service and schedule handover
+        shell: bash
+        run: |
+          set -euo pipefail
+          runner_dir="/home/admin/actions-runner"
+          cd "$runner_dir"
+
+          service_name="$(systemctl list-unit-files --type=service --no-legend 2>/dev/null             | awk '{print $1}'             | grep '^actions\.runner\.'             | grep 'leadboard-server'             | head -1 || true)"
+
+          if [ -z "$service_name" ]; then
+            sudo -n ./svc.sh install admin
+            service_name="$(systemctl list-unit-files --type=service --no-legend               | awk '{print $1}'               | grep '^actions\.runner\.'               | grep 'leadboard-server'               | head -1)"
+          fi
+
+          test -n "$service_name"
+          sudo -n systemctl enable "$service_name"
+
+          cat > /tmp/leadboard-runner-handover.sh <<EOF
+          #!/bin/bash
+          set -e
+          listener_pid="\$(pgrep -u admin -f '/home/admin/actions-runner/bin/Runner.Listener run' | head -1 || true)"
+          if [ -n "\$listener_pid" ]; then
+            kill -INT "\$listener_pid" || true
+          fi
+          sleep 4
+          systemctl restart "$service_name"
+          EOF
+          sudo -n install -o root -g root -m 0755 /tmp/leadboard-runner-handover.sh /usr/local/sbin/leadboard-runner-handover
+          rm -f /tmp/leadboard-runner-handover.sh
+
+          sudo -n systemd-run             --unit=leadboard-runner-handover             --on-active=20s             --timer-property=AccuracySec=1s             /usr/local/sbin/leadboard-runner-handover
+
+          echo "Runner service installed and handover scheduled."
+          echo "The foreground ./run.sh session may exit when the service takes over."
