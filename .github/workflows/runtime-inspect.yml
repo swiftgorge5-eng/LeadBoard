@@ -1,0 +1,31 @@
+name: LeadBoard Runtime Inspect
+
+on:
+  push:
+    paths:
+      - ".github/workflows/runtime-inspect.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 10
+    steps:
+      - name: Inspect runtime integration
+        shell: bash
+        run: |
+          set +e
+          current="$(systemctl show -p WorkingDirectory --value leadboard.service)"
+          echo "=== relevant source/dist references ==="
+          sudo -n grep -R -n -E 'frontend/dist|express.static|sendFile|index.html|serveStatic|VITE'             "$current/backend/src" "$current/backend/dist" 2>/dev/null | head -160 || true
+          echo
+          echo "=== backend dist files ==="
+          sudo -n find "$current/backend/dist" -maxdepth 3 -type f -printf '%p\n' 2>/dev/null | head -160
+          echo
+          echo "=== frontend dist ==="
+          sudo -n find "$current/frontend/dist" -maxdepth 2 -type f -printf '%p %s bytes\n' 2>/dev/null | head -120
+          echo
+          echo "=== app source ==="
+          sudo -n sed -n '1,220p' "$current/backend/src/app.ts" 2>/dev/null || true
