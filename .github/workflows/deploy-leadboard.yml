@@ -40,12 +40,14 @@ jobs:
           cd "$work/src"
 
           echo "=== Use server Node 24 runtime ==="
+          npm_cli="$(readlink -f "$(command -v npm)")"
+          test -f "$npm_cli"
           nodebin="$work/node24bin"
           mkdir -p "$nodebin"
           ln -s /usr/local/bin/leadboard-node "$nodebin/node"
-          cat > "$nodebin/npm" <<'NPMWRAP'
+          cat > "$nodebin/npm" <<NPMWRAP
           #!/usr/bin/env bash
-          exec /usr/local/bin/leadboard-node /usr/bin/npm "$@"
+          exec /usr/local/bin/leadboard-node "$npm_cli" "\$@"
           NPMWRAP
           chmod +x "$nodebin/npm"
           export PATH="$nodebin:$PATH"
