@@ -67,3 +67,12 @@ export {
   type EmailVerificationApi,
   type VerificationEmailSender,
 } from "./email-verification.js";
+
+export {
+  createGitHubLinkServiceFromEnv,
+  GitHubLinkError,
+  GitHubOAuthLinkService,
+  UnavailableGitHubLinkApi,
+  type GitHubLinkApi,
+  type GitHubLinkInfo,
+} from "./github-link.js";
