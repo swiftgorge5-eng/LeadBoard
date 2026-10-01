@@ -11,7 +11,7 @@ function navClass({ isActive }: { isActive: boolean }) {
   return isActive ? "nav-link nav-link-active" : "nav-link";
 }
 
-export function App({ api, isMock = false }: { api: LeadBoardApiClient; isMock?: boolean }) {
+export function App({ api, isMock: _isMock = false }: { api: LeadBoardApiClient; isMock?: boolean }) {
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
 
   useEffect(() => {
