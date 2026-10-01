@@ -1,5 +1,5 @@
 name: Deploy LeadBoard
-# UI redesign deployment trigger
+# UI hero cleanup deployment trigger
 
 on:
   push:
