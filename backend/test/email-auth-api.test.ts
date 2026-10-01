@@ -17,10 +17,33 @@ function emailDependencies() {
   };
 }
 
+function routerWithEmail(emailVerification?: ReturnType<typeof emailDependencies>["emailVerification"]) {
+  return createApiRouter({
+    analytics: {
+      async getGroups() { return []; },
+      async getOrganizationActivitySummary(range) {
+        return { range, repositories: 0, contributors: 0, commits: 0, prs: 0, issues: 0, total: 0 };
+      },
+      async getRepositoryStats() { return []; },
+      async getContributorLeaderboard() { return []; },
+      async getContributorDetail() { return null; },
+    },
+    async getSyncStatus() {
+      return {
+        lastSuccessfulRunAt: null,
+        lastRunStatus: null,
+        nextScheduledRunAt: null,
+        dataStatus: "missing" as const,
+      };
+    },
+    ...(emailVerification === undefined ? {} : { emailVerification }),
+  });
+}
+
 describe("email verification HTTP API", () => {
   it("sends a code through the shared response contract", async () => {
     const deps = emailDependencies();
-    const app = createApp({ apiRouter: createApiRouter(deps) });
+    const app = createApp({ apiRouter: routerWithEmail(deps.emailVerification) });
     const response = await request(app)
       .post("/api/v1/auth/email/send-code")
       .send({ email: "student@fudan.edu.cn" })
@@ -39,7 +62,7 @@ describe("email verification HTTP API", () => {
 
   it("verifies a six-digit code", async () => {
     const deps = emailDependencies();
-    const app = createApp({ apiRouter: createApiRouter(deps) });
+    const app = createApp({ apiRouter: routerWithEmail(deps.emailVerification) });
     await request(app)
       .post("/api/v1/auth/email/verify")
       .send({ email: "student@m.fudan.edu.cn", code: "012345" })
@@ -53,7 +76,7 @@ describe("email verification HTTP API", () => {
 
   it("rejects malformed input before calling the service", async () => {
     const deps = emailDependencies();
-    const app = createApp({ apiRouter: createApiRouter(deps) });
+    const app = createApp({ apiRouter: routerWithEmail(deps.emailVerification) });
     const badEmail = await request(app)
       .post("/api/v1/auth/email/send-code")
       .send({ email: "bad" })
@@ -74,7 +97,7 @@ describe("email verification HTTP API", () => {
     deps.emailVerification.sendCode.mockRejectedValueOnce(
       new EmailAuthError("EMAIL_RATE_LIMITED", 429, "该邮箱发送过于频繁，请稍后再试"),
     );
-    const app = createApp({ apiRouter: createApiRouter(deps) });
+    const app = createApp({ apiRouter: routerWithEmail(deps.emailVerification) });
     const response = await request(app)
       .post("/api/v1/auth/email/send-code")
       .send({ email: "student@fudan.edu.cn" })
@@ -86,7 +109,7 @@ describe("email verification HTTP API", () => {
   });
 
   it("returns service unavailable when email verification is not configured", async () => {
-    const app = createApp({ apiRouter: createApiRouter() });
+    const app = createApp({ apiRouter: routerWithEmail() });
     const response = await request(app)
       .post("/api/v1/auth/email/send-code")
       .send({ email: "student@fudan.edu.cn" })
