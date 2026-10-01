@@ -2,6 +2,9 @@ name: LeadBoard Server Diagnostics
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/server-diagnostics.yml"
 
 permissions:
   contents: read
@@ -46,7 +49,8 @@ jobs:
           systemctl list-units --type=service --state=running --no-pager 2>/dev/null | head -100 || true
           echo
           echo "=== docker containers ==="
-          docker ps --format 'table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Ports}}' 2>/dev/null ||             sudo -n docker ps --format 'table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Ports}}' 2>/dev/null || true
+          docker ps --format 'table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Ports}}' 2>/dev/null || \
+            sudo -n docker ps --format 'table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Ports}}' 2>/dev/null || true
           echo
           echo "=== pm2 ==="
           pm2 list 2>/dev/null || true
@@ -56,7 +60,8 @@ jobs:
         run: |
           set +e
           echo "=== likely LeadBoard directories ==="
-          find /root /opt /srv /var/www /home -maxdepth 3 -type d             \( -iname 'LeadBoard' -o -iname '*leadboard*' \) 2>/dev/null | head -100 || true
+          find /root /opt /srv /var/www /home -maxdepth 3 -type d \
+            \( -iname 'LeadBoard' -o -iname '*leadboard*' \) 2>/dev/null | head -100 || true
 
       - name: Runner context
         shell: bash
