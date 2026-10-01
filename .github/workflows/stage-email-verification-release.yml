@@ -24,7 +24,7 @@ jobs:
         run: |
           set -euo pipefail
           tar --exclude=.git -czf /tmp/leadboard-release.tgz .
-          sha256sum /tmp/leadboard-release.tgz > /tmp/leadboard-release.sha256
+          (cd /tmp && sha256sum leadboard-release.tgz > leadboard-release.sha256)
       - uses: actions/upload-artifact@v6
         with:
           name: leadboard-release
