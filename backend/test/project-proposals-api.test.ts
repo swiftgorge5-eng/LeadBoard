@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { createApiRouter } from "../src/api/router.js";
+import type { ProjectProposalApi } from "../src/projects/proposals.js";
 
-function createRouter(projectProposals: { submit: ReturnType<typeof vi.fn> }) {
+function createRouter(projectProposals: ProjectProposalApi) {
   return createApiRouter({
     analytics: {
       async getGroups() { return []; },
