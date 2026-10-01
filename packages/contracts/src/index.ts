@@ -178,6 +178,32 @@ export const LeaderboardQuerySchema = z.object({
 });
 export type LeaderboardQuery = z.infer<typeof LeaderboardQuerySchema>;
 
+
+const emailAddress = z.string().trim().max(254).email();
+
+export const EmailCodeRequestSchema = z.object({
+  email: emailAddress,
+});
+export type EmailCodeRequest = z.infer<typeof EmailCodeRequestSchema>;
+
+export const EmailCodeVerifyRequestSchema = EmailCodeRequestSchema.extend({
+  code: z.string().trim().regex(/^\d{6}$/, "Expected a 6-digit verification code"),
+});
+export type EmailCodeVerifyRequest = z.infer<typeof EmailCodeVerifyRequestSchema>;
+
+export const EmailCodeSendResponseSchema = z.object({
+  sent: z.literal(true),
+  retryAfterSeconds: positive,
+  expiresInSeconds: positive,
+});
+export type EmailCodeSendResponse = z.infer<typeof EmailCodeSendResponseSchema>;
+
+export const EmailCodeVerifyResponseSchema = z.object({
+  verified: z.literal(true),
+});
+export type EmailCodeVerifyResponse = z.infer<typeof EmailCodeVerifyResponseSchema>;
+
+
 export const SyncConfigSchema = AppConfigSchema.pick({
   githubOrg: true, groupProperty: true, ingestionCronSchedule: true,
   initialSyncDays: true, syncOverlapMinutes: true, dataStaleAfterHours: true,
