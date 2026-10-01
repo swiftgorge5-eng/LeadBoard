@@ -3,6 +3,7 @@ name: Stage Email Verification Release
 # Re-staged after restoring the production migration history.
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - ".github/workflows/stage-email-verification-release.yml"
