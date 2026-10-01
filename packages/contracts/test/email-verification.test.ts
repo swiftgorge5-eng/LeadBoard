@@ -35,6 +35,9 @@ describe("email verification contracts", () => {
       retryAfterSeconds: 60,
       expiresInSeconds: 600,
     })).toEqual({ sent: true, retryAfterSeconds: 60, expiresInSeconds: 600 });
-    expect(EmailCodeVerifyResponseSchema.parse({ verified: true })).toEqual({ verified: true });
+    expect(EmailCodeVerifyResponseSchema.parse({
+      verified: true,
+      githubLink: { available: false },
+    })).toEqual({ verified: true, githubLink: { available: false } });
   });
 });

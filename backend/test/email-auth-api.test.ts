@@ -12,7 +12,7 @@ function emailDependencies() {
         retryAfterSeconds: 60,
         expiresInSeconds: 600,
       }),
-      verifyCode: vi.fn().mockResolvedValue({ verified: true as const }),
+      verifyCode: vi.fn().mockResolvedValue({ verified: true as const, memberId: "42" }),
     },
   };
 }
@@ -66,7 +66,7 @@ describe("email verification HTTP API", () => {
     await request(app)
       .post("/api/v1/auth/email/verify")
       .send({ email: "student@m.fudan.edu.cn", code: "012345" })
-      .expect(200, { verified: true });
+      .expect(200, { verified: true, githubLink: { available: false } });
 
     expect(deps.emailVerification.verifyCode).toHaveBeenCalledWith(
       "student@m.fudan.edu.cn",
@@ -115,5 +115,92 @@ describe("email verification HTTP API", () => {
       .send({ email: "student@fudan.edu.cn" })
       .expect(503);
     expect(response.body.error.code).toBe("EMAIL_AUTH_NOT_CONFIGURED");
+  });
+});
+
+
+describe("GitHub linking HTTP API", () => {
+  it("returns an authorization URL after email verification when configured", async () => {
+    const deps = emailDependencies();
+    const githubLink = {
+      createAuthorization: vi.fn().mockResolvedValue({
+        available: true as const,
+        authorizeUrl: "https://github.com/login/oauth/authorize?client_id=test&state=abc",
+      }),
+      completeAuthorization: vi.fn(),
+    };
+    const app = createApp({
+      apiRouter: createApiRouter({
+        analytics: {
+          async getGroups() { return []; },
+          async getOrganizationActivitySummary(range) {
+            return { range, repositories: 0, contributors: 0, commits: 0, prs: 0, issues: 0, total: 0 };
+          },
+          async getRepositoryStats() { return []; },
+          async getContributorLeaderboard() { return []; },
+          async getContributorDetail() { return null; },
+        },
+        async getSyncStatus() {
+          return {
+            lastSuccessfulRunAt: null,
+            lastRunStatus: null,
+            nextScheduledRunAt: null,
+            dataStatus: "missing" as const,
+          };
+        },
+        emailVerification: deps.emailVerification,
+        githubLink,
+      }),
+    });
+
+    const response = await request(app)
+      .post("/api/v1/auth/email/verify")
+      .send({ email: "student@fudan.edu.cn", code: "012345" })
+      .expect(200);
+
+    expect(response.body).toEqual({
+      verified: true,
+      githubLink: {
+        available: true,
+        authorizeUrl: "https://github.com/login/oauth/authorize?client_id=test&state=abc",
+      },
+    });
+    expect(githubLink.createAuthorization).toHaveBeenCalledWith("42");
+  });
+
+  it("redirects a successful GitHub callback back to the join page", async () => {
+    const githubLink = {
+      createAuthorization: vi.fn(),
+      completeAuthorization: vi.fn().mockResolvedValue({ login: "octocat" }),
+    };
+    const app = createApp({
+      apiRouter: createApiRouter({
+        analytics: {
+          async getGroups() { return []; },
+          async getOrganizationActivitySummary(range) {
+            return { range, repositories: 0, contributors: 0, commits: 0, prs: 0, issues: 0, total: 0 };
+          },
+          async getRepositoryStats() { return []; },
+          async getContributorLeaderboard() { return []; },
+          async getContributorDetail() { return null; },
+        },
+        async getSyncStatus() {
+          return {
+            lastSuccessfulRunAt: null,
+            lastRunStatus: null,
+            nextScheduledRunAt: null,
+            dataStatus: "missing" as const,
+          };
+        },
+        githubLink,
+      }),
+    });
+
+    const response = await request(app)
+      .get("/api/v1/auth/github/callback?code=abc&state=xyz")
+      .expect(303);
+
+    expect(response.headers.location).toBe("/join?github=success&login=octocat");
+    expect(githubLink.completeAuthorization).toHaveBeenCalledWith("abc", "xyz");
   });
 });

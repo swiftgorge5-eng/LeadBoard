@@ -541,6 +541,8 @@ a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible
 .join-step small { display: block; margin-top: 2px; font-size: 10px; }
 .join-step-active > span { border-color: #cbc7f8; background: #eeedff; color: #655bd7; }
 .join-step-active strong { color: #4a4d61; }
+.join-step-done > span { border-color: #bfe2d7; background: #eaf7f2; color: #469b80; }
+.join-step-done strong { color: #4a4d61; }
 .privacy-card { display: flex; gap: 12px; margin-top: 22px; padding: 15px; border: 1px solid #e9e8f3; border-radius: 13px; background: #fbfbfe; }
 .privacy-icon { display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; border-radius: 9px; background: #eeedff; color: #6c62dc; }
 .privacy-card strong { color: #56596c; font-size: 11px; }
@@ -596,6 +598,13 @@ a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible
 .verified-mark { display: inline-grid; place-items: center; width: 58px; height: 58px; border-radius: 50%; background: #eaf7f2; color: #4aa486; font-size: 26px; font-weight: 850; }
 .verified-state h2 { margin: 14px 0 6px; color: #44475b; font-size: 21px; }
 .verified-state p { margin: 0; color: #9295a6; font-size: 11px; line-height: 1.7; }
+.verified-state p strong { color: #56596c; }
+.github-link-state { padding-bottom: 4px; }
+.github-link-button {
+  width: 100%;
+  margin-top: 20px;
+  text-decoration: none;
+}
 .success-band { margin-top: 18px; padding: 11px; border-radius: 9px; background: #f1f0ff; color: #6a61d8; font-size: 10px; font-weight: 700; }
 
 .not-found { min-height: 520px; padding: 90px 20px; text-align: center; }

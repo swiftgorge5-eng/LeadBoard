@@ -7,6 +7,19 @@ import {
 
 type Notice = { tone: "info" | "success" | "error"; text: string } | null;
 
+function githubCallbackMessage(reason: string | null): string {
+  switch (reason) {
+    case "access_denied":
+      return "你取消了 GitHub 授权，没有进行绑定。";
+    case "already_linked":
+      return "这个 GitHub 账号已经绑定到其他复旦身份。";
+    case "not_configured":
+      return "GitHub 绑定服务尚未配置。";
+    default:
+      return "GitHub 授权没有完成，请重新验证邮箱后再试。";
+  }
+}
+
 async function postJson<T>(
   path: string,
   body: unknown,
@@ -68,6 +81,12 @@ export function IdentityVerificationPage() {
   const [busy, setBusy] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [notice, setNotice] = useState<Notice>(null);
+  const [githubAuthorizeUrl, setGithubAuthorizeUrl] = useState<string | null>(null);
+  const callbackParams = new URLSearchParams(window.location.search);
+  const githubCallbackStatus = callbackParams.get("github");
+  const githubLogin = callbackParams.get("login");
+  const githubCallbackReason = callbackParams.get("reason");
+  const githubLinked = githubCallbackStatus === "success";
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -104,13 +123,19 @@ export function IdentityVerificationPage() {
     setBusy(true);
     setNotice(null);
     try {
-      await postJson(
+      const result = await postJson(
         "/api/v1/auth/email/verify",
         { email, code },
         EmailCodeVerifyResponseSchema,
       );
       setVerified(true);
-      setNotice({ tone: "success", text: "复旦身份验证成功。GitHub 账号绑定将在下一阶段开放。" });
+      if (result.githubLink.available) {
+        setGithubAuthorizeUrl(result.githubLink.authorizeUrl);
+        setNotice({ tone: "success", text: "复旦身份验证成功。现在可以继续绑定 GitHub。" });
+      } else {
+        setGithubAuthorizeUrl(null);
+        setNotice({ tone: "info", text: "复旦身份验证成功。GitHub 绑定服务还需要完成一次管理员配置。" });
+      }
     } catch (error) {
       setNotice({ tone: "error", text: messageFor(error instanceof Error ? error.message : "UNKNOWN") });
     } finally {
@@ -124,33 +149,54 @@ export function IdentityVerificationPage() {
         <div className="join-copy">
           <span className="hero-badge">FUDAN IDENTITY</span>
           <h1>把你的开源贡献<br />带回校园。</h1>
-          <p>验证复旦邮箱后，你的身份可以用于后续 GitHub 账号绑定与贡献归属。</p>
+          <p>先验证复旦邮箱，再通过 GitHub 官方授权确认账号归属。LeadBoard 不保存 GitHub OAuth access token。</p>
           <div className="join-steps" aria-label="加入贡献榜步骤">
-            <div className="join-step join-step-active"><span>1</span><div><strong>验证邮箱</strong><small>确认复旦身份</small></div></div>
-            <div className="join-step"><span>2</span><div><strong>绑定 GitHub</strong><small>下一阶段开放</small></div></div>
-            <div className="join-step"><span>3</span><div><strong>进入贡献榜</strong><small>持续记录开源成长</small></div></div>
+            <div className={`join-step ${verified || githubLinked ? "join-step-done" : "join-step-active"}`}><span>{verified || githubLinked ? "✓" : "1"}</span><div><strong>验证邮箱</strong><small>确认复旦身份</small></div></div>
+            <div className={`join-step ${githubLinked ? "join-step-done" : verified ? "join-step-active" : ""}`}><span>{githubLinked ? "✓" : "2"}</span><div><strong>绑定 GitHub</strong><small>通过 GitHub 官方 OAuth 确认账号</small></div></div>
+            <div className={`join-step ${githubLinked ? "join-step-active" : ""}`}><span>3</span><div><strong>贡献归属</strong><small>用稳定 GitHub ID 关联公开贡献</small></div></div>
           </div>
           <div className="privacy-card">
             <span className="privacy-icon" aria-hidden="true">◇</span>
-            <div><strong>隐私设计</strong><p>我们只保存不可逆的邮箱指纹，不把完整邮箱作为排行榜身份长期保存。</p></div>
+            <div><strong>隐私设计</strong><p>邮箱只保存不可逆指纹；GitHub 只保存账号 ID、用户名和头像，授权 token 验证完身份后立即丢弃。</p></div>
           </div>
         </div>
 
         <div className="verify-card">
           <div className="verify-card-head">
             <span className="verify-icon" aria-hidden="true">✦</span>
-            <div><p>加入 LeadBoard</p><h2>{verified ? "身份验证完成" : sent ? "输入邮箱验证码" : "验证复旦邮箱"}</h2></div>
+            <div><p>加入 LeadBoard</p><h2>{githubLinked ? "GitHub 绑定完成" : verified ? "继续绑定 GitHub" : sent ? "输入邮箱验证码" : "验证复旦邮箱"}</h2></div>
           </div>
 
-          {verified ? (
+          {githubLinked ? (
             <div className="verified-state" role="status">
               <span className="verified-mark" aria-hidden="true">✓</span>
-              <h2>验证完成</h2>
-              <p>这个复旦身份已经可以用于后续 GitHub 账号绑定。</p>
-              <div className="success-band">欢迎加入 LeadBoard · 下一步功能即将开放</div>
+              <h2>GitHub 绑定成功</h2>
+              <p>{githubLogin ? <>已确认账号 <strong>@{githubLogin}</strong> 的归属。</> : "GitHub 账号已经成功绑定。"}</p>
+              <div className="success-band">邮箱身份 + GitHub 身份已关联 · OAuth token 未保存</div>
+            </div>
+          ) : verified ? (
+            <div className="verified-state github-link-state" role="status">
+              <span className="verified-mark" aria-hidden="true">✓</span>
+              <h2>邮箱验证完成</h2>
+              <p>下一步会跳转到 GitHub 官方页面确认你控制的账号。</p>
+              {githubAuthorizeUrl ? (
+                <a className="primary-button github-link-button" href={githubAuthorizeUrl}>
+                  使用 GitHub 账号授权
+                </a>
+              ) : (
+                <div className="verify-notice verify-notice-info">
+                  GitHub OAuth 还没有配置完成。邮箱身份已经验证成功。
+                </div>
+              )}
+              {notice && <p className={`verify-notice verify-notice-${notice.tone}`}>{notice.text}</p>}
             </div>
           ) : (
             <>
+              {githubCallbackStatus === "error" && (
+                <p className="verify-notice verify-notice-error" role="status">
+                  {githubCallbackMessage(githubCallbackReason)}
+                </p>
+              )}
               <form onSubmit={sendCode}>
                 <label className="form-field">
                   <span>复旦邮箱</span>
