@@ -1,0 +1,107 @@
+name: Stage Email Verification Release
+
+on:
+  push:
+    paths:
+      - ".github/workflows/stage-email-verification-release.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - run: npm ci
+      - run: npm run build
+      - name: Package exact built release
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar --exclude=.git -czf /tmp/leadboard-release.tgz .
+          sha256sum /tmp/leadboard-release.tgz > /tmp/leadboard-release.sha256
+      - uses: actions/upload-artifact@v6
+        with:
+          name: leadboard-release
+          path: |
+            /tmp/leadboard-release.tgz
+            /tmp/leadboard-release.sha256
+          retention-days: 3
+
+  stage:
+    needs: build
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: leadboard-release
+          path: _release_artifact
+      - name: Stage release, migrate database, keep site stopped
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          artifact="$GITHUB_WORKSPACE/_release_artifact/leadboard-release.tgz"
+          checksum="$GITHUB_WORKSPACE/_release_artifact/leadboard-release.sha256"
+          test -s "$artifact"
+          test -s "$checksum"
+          (cd "$(dirname "$artifact")" && sha256sum -c "$(basename "$checksum")")
+
+          short_sha="$(printf '%s' "$GITHUB_SHA" | cut -c1-8)"
+          release_id="$(date -u +%Y%m%d%H%M%S)-$short_sha"
+          release_dir="/opt/leadboard/releases/$release_id"
+          echo "Staging release: $release_id"
+
+          sudo -n install -d -o leadboard -g leadboard -m 0755 "$release_dir"
+          sudo -n tar xzf "$artifact" -C "$release_dir"
+          sudo -n chown -R leadboard:leadboard "$release_dir"
+
+          test -f "$release_dir/backend/dist/server.js"
+          test -f "$release_dir/frontend/dist/index.html"
+          test -f "$release_dir/scripts/db-migrate.mjs"
+
+          # Prepare the identity fingerprint secret once. Never print it to logs.
+          if ! sudo -n grep -Eq '^EMAIL_HMAC_SECRET=.+$' /etc/leadboard/leadboard.env; then
+            secret="$(openssl rand -hex 32)"
+            sudo -n sed -i '/^EMAIL_HMAC_SECRET=$/d' /etc/leadboard/leadboard.env
+            printf '\nEMAIL_HMAC_SECRET=%s\n' "$secret" | sudo -n tee -a /etc/leadboard/leadboard.env >/dev/null
+            unset secret
+          fi
+          if ! sudo -n grep -q '^FUDAN_EMAIL_DOMAINS=' /etc/leadboard/leadboard.env; then
+            printf 'FUDAN_EMAIL_DOMAINS=fudan.edu.cn,m.fudan.edu.cn\n' | sudo -n tee -a /etc/leadboard/leadboard.env >/dev/null
+          fi
+
+          # Run additive migrations and verify the complete schema using the production DB config.
+          sudo -n bash -c '
+            set -a
+            . /etc/leadboard/leadboard.env
+            set +a
+            cd "$1"
+            /usr/local/bin/leadboard-node scripts/db-migrate.mjs
+            /usr/local/bin/leadboard-node scripts/db-verify.mjs
+          ' bash "$release_dir"
+
+          # Point the stopped service at the new release without starting it.
+          sudo -n install -d -m 0755 /etc/systemd/system/leadboard.service.d
+          printf '[Service]\nWorkingDirectory=%s\n' "$release_dir" | \
+            sudo -n tee /etc/systemd/system/leadboard.service.d/release.conf >/dev/null
+          sudo -n systemctl daemon-reload
+
+          if systemctl is-active --quiet leadboard.service; then
+            echo "leadboard.service unexpectedly active; stopping it again."
+            sudo -n systemctl stop leadboard.service
+          fi
+
+          actual="$(systemctl show -p WorkingDirectory --value leadboard.service)"
+          test "$actual" = "$release_dir"
+          test "$(systemctl is-active leadboard.service || true)" = "inactive"
+
+          echo "Release staged successfully."
+          echo "leadboard.service remains stopped."
+          echo "SMTP credentials were not configured or changed."
