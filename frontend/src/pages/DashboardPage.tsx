@@ -81,14 +81,6 @@ export function DashboardPage({ api, isMock = false }: { api: LeadBoardApiClient
           </div>
           {isMock && <p className="demo-notice" role="status">当前展示模拟数据，不代表真实 GitHub 活动。</p>}
         </div>
-        <div className="hero-visual" aria-hidden="true">
-          <div className="orbit orbit-one" />
-          <div className="orbit orbit-two" />
-          <div className="hero-logo">LB</div>
-          <span className="floating-chip chip-one">Commit</span>
-          <span className="floating-chip chip-two">Pull Request</span>
-          <span className="floating-chip chip-three">Issue</span>
-        </div>
       </section>
 
       <section className="filter-card" aria-label="Dashboard 筛选">
