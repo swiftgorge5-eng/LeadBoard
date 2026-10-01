@@ -1,0 +1,89 @@
+name: Deploy LeadBoard
+
+on:
+  push:
+    paths:
+      - ".github/workflows/deploy-leadboard.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 20
+    steps:
+      - name: Build, migrate, and deploy LeadBoard
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "=== Preflight ==="
+          for key in GITHUB_TOKEN GITHUB_ORG DATABASE_URL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD MAIL_FROM EMAIL_HMAC_SECRET; do
+            sudo grep -q "^${key}=" /etc/leadboard/leadboard.env || {
+              echo "::error::Missing ${key} in /etc/leadboard/leadboard.env"
+              exit 1
+            }
+          done
+
+          stamp="$(date -u +%Y%m%d%H%M%S)"
+          sha="$(git ls-remote https://github.com/swiftgorge5-eng/LeadBoard.git refs/heads/main | cut -c1-8)"
+          release="/opt/leadboard/releases/${stamp}-${sha}"
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+
+          echo "=== Checkout main ==="
+          git clone --depth 1 --branch main https://github.com/swiftgorge5-eng/LeadBoard.git "$work/src"
+          cd "$work/src"
+
+          echo "=== Install and build ==="
+          npm ci
+          npm run build
+
+          echo "=== Create immutable release ==="
+          sudo mkdir -p "$release"
+          sudo cp -a . "$release/"
+          sudo rm -rf "$release/.git"
+          sudo chown -R root:root "$release"
+          sudo chmod -R a+rX "$release"
+
+          echo "=== Database migration ==="
+          sudo install -o leadboard -g leadboard -m 600 /etc/leadboard/leadboard.env "$release/.env"
+          sudo -u leadboard bash -c "cd '$release' && /usr/local/bin/leadboard-node --env-file=.env scripts/db-migrate.mjs"
+          sudo rm -f "$release/.env"
+
+          echo "=== Switch systemd release ==="
+          sudo mkdir -p /etc/systemd/system/leadboard.service.d
+          printf '[Service]\nWorkingDirectory=%s\n' "$release" | sudo tee /etc/systemd/system/leadboard.service.d/release.conf >/dev/null
+          sudo systemctl daemon-reload
+          sudo systemctl restart leadboard.service
+
+          echo "=== Health checks ==="
+          ok=0
+          for i in $(seq 1 20); do
+            if curl -fsS --max-time 3 http://127.0.0.1:3000/health | grep -q '"status":"ok"'; then
+              ok=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "::error::LeadBoard failed health check"
+            sudo systemctl status leadboard.service --no-pager || true
+            sudo journalctl -u leadboard.service -n 80 --no-pager || true
+            exit 1
+          fi
+
+          curl -fsS --max-time 5 -H 'Accept: text/html' http://127.0.0.1:3000/join | grep -qi '<!doctype html>'
+          status="$(curl -sS -o /tmp/leadboard-auth-check.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"email":"not-fudan@example.com"}' http://127.0.0.1:3000/api/v1/auth/email/send-code)"
+          test "$status" = "400"
+
+          echo "=== Public reverse proxy ==="
+          curl -fsS --max-time 5 http://127.0.0.1/health | grep -q '"status":"ok"'
+
+          echo "Deployment successful."
+          echo "Release: $release"
+          echo "Health: OK"
+          echo "Join page: OK"
+          echo "Email API: active"
+          echo "Nginx proxy: OK"
