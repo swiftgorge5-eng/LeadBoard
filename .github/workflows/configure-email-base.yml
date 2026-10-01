@@ -1,0 +1,68 @@
+name: Configure LeadBoard email base
+
+on:
+  push:
+    paths:
+      - ".github/workflows/configure-email-base.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  configure:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 5
+    steps:
+      - name: Configure non-secret email settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo mkdir -p /etc/leadboard
+          sudo touch /etc/leadboard/leadboard.env
+          sudo chmod 600 /etc/leadboard/leadboard.env
+
+          tmp="$(mktemp)"
+          sudo cat /etc/leadboard/leadboard.env | grep -vE '^(SMTP_HOST|SMTP_PORT|SMTP_SECURE|SMTP_STARTTLS|SMTP_USER|SMTP_PASSWORD|MAIL_FROM|EMAIL_HMAC_SECRET)=' > "$tmp" || true
+
+          if sudo grep -q '^EMAIL_HMAC_SECRET=' /etc/leadboard/leadboard.env; then
+            secret="$(sudo grep '^EMAIL_HMAC_SECRET=' /etc/leadboard/leadboard.env | tail -1 | cut -d= -f2-)"
+          else
+            secret="$(openssl rand -hex 32)"
+          fi
+
+          {
+            cat "$tmp"
+            echo 'SMTP_HOST=smtp.163.com'
+            echo 'SMTP_PORT=465'
+            echo 'SMTP_SECURE=true'
+            echo 'SMTP_STARTTLS=false'
+            echo 'SMTP_USER=leadboard_official@163.com'
+            echo 'MAIL_FROM=LeadBoard <leadboard_official@163.com>'
+            echo "EMAIL_HMAC_SECRET=$secret"
+          } | sudo tee /etc/leadboard/leadboard.env >/dev/null
+          rm -f "$tmp"
+          sudo chmod 600 /etc/leadboard/leadboard.env
+
+          sudo tee /usr/local/sbin/leadboard-set-smtp-password >/dev/null <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          read -r -s -p "请输入新的163客户端授权码: " pass
+          echo
+          tmp="$(mktemp)"
+          trap 'rm -f "$tmp"' EXIT
+          sudo cat /etc/leadboard/leadboard.env | grep -v '^SMTP_PASSWORD=' > "$tmp" || true
+          printf 'SMTP_PASSWORD=%s\n' "$pass" >> "$tmp"
+          sudo install -m 600 "$tmp" /etc/leadboard/leadboard.env
+          unset pass
+          echo "SMTP授权码已安全写入。"
+          SCRIPT
+          sudo chmod 700 /usr/local/sbin/leadboard-set-smtp-password
+
+          echo "LeadBoard email base configuration prepared."
+          sudo grep -E '^(SMTP_HOST|SMTP_PORT|SMTP_SECURE|SMTP_STARTTLS|SMTP_USER|MAIL_FROM)=' /etc/leadboard/leadboard.env
+          echo "EMAIL_HMAC_SECRET is configured (value hidden)."
+          if sudo grep -q '^SMTP_PASSWORD=' /etc/leadboard/leadboard.env; then
+            echo "SMTP_PASSWORD is configured (value hidden)."
+          else
+            echo "SMTP_PASSWORD is not configured yet."
+          fi
