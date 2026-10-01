@@ -76,6 +76,11 @@ const tables = {
     member_id: required("bigint"), github_id: required("bigint"),
     linked_at: required(timestamp, "now()"), is_primary: required("boolean", "false"),
   },
+  project_proposals: {
+    id: id(), project_url: required("text"), lab_name: required("text"), notes: required("text"),
+    status: required("text", "'pending'::text"),
+    created_at: required(timestamp, "now()"), updated_at: required(timestamp, "now()"),
+  },
 };
 
 const foreignKeys = [
@@ -111,6 +116,7 @@ const indexes = {
   email_verification_email_time_idx: ["email_verification_challenges", "email_fingerprint", "created_at"],
   email_verification_ip_time_idx: ["email_verification_challenges", "requester_ip_fingerprint", "created_at"],
   member_github_primary_idx: ["member_github_accounts", "member_id"],
+  project_proposals_status_time_idx: ["project_proposals", "status", "created_at"],
 };
 
 const primaryKeys = {
@@ -125,6 +131,7 @@ const primaryKeys = {
   email_verification_challenges: ["id"],
   github_accounts: ["github_id"],
   member_github_accounts: ["member_id", "github_id"],
+  project_proposals: ["id"],
 };
 
 const pool = new pg.Pool({ connectionString: databaseUrl });
@@ -186,7 +193,7 @@ try {
   if (problems.length) {
     for (const problem of problems) console.error(problem);
     process.exitCode = 1;
-  } else console.info("Database schema verified: 11 tables, columns, foreign keys, unique constraints, and indexes.");
+  } else console.info("Database schema verified: 12 tables, columns, foreign keys, unique constraints, and indexes.");
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
