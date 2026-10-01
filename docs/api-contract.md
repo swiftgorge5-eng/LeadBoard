@@ -633,3 +633,80 @@ Schema 校验 numeric ID 为十进制字符串、时间为 UTC `Z` 结尾的 ISO
 HTTP 参数默认值：省略 range 使用 30d，省略 metric 使用 total，省略 limit 使用 50；group 省略表示不过滤。显式空值、重复参数及非法值返回 JSON 4xx；不能用默认值掩盖无效输入。HTTP 层转换正十进制 limit，Analytics 接收数字。数据库聚合计数安全转换为 number，GitHub BIGINT ID 保持 string。
 
 IngestionResult 的 inserted/updated/skipped/errors 以输入 Activity 条数计数，每条只属于一项；正常返回四项之和等于输入条数。异常回滚必须上报；errors>0 不能被同步器算作该仓库成功。空的完整 scope 可以成功；scope 失败或全部仓库失败为 failed，只有部分仓库失败为 partial。
+
+
+## 15. 复旦邮箱身份验证 API
+
+个人贡献榜的第一步只验证复旦身份邮箱。GitHub OAuth 与个人贡献采集在下一阶段接入。
+
+### 发送验证码
+
+`POST /api/v1/auth/email/send-code`
+
+请求：
+
+```json
+{
+  "email": "student@fudan.edu.cn"
+}
+```
+
+成功返回 HTTP 202：
+
+```json
+{
+  "sent": true,
+  "retryAfterSeconds": 60,
+  "expiresInSeconds": 600
+}
+```
+
+服务端同时校验允许的复旦邮箱域名；允许域名由
+`FUDAN_EMAIL_DOMAINS` 配置，默认 `fudan.edu.cn,m.fudan.edu.cn`，并接受这些根域的子域。
+
+### 验证验证码
+
+`POST /api/v1/auth/email/verify`
+
+请求：
+
+```json
+{
+  "email": "student@fudan.edu.cn",
+  "code": "012345"
+}
+```
+
+成功返回 HTTP 200：
+
+```json
+{
+  "verified": true
+}
+```
+
+成功后创建或刷新同一 `email_fingerprint` 对应的 `members` 记录，不重复创建身份。
+
+### 身份验证错误 code
+
+```text
+INVALID_EMAIL
+INVALID_FUDAN_EMAIL
+INVALID_VERIFICATION_CODE
+VERIFICATION_CODE_EXPIRED
+VERIFICATION_CODE_USED
+VERIFICATION_ATTEMPTS_EXCEEDED
+EMAIL_RESEND_TOO_SOON
+EMAIL_RATE_LIMITED
+IP_RATE_LIMITED
+EMAIL_DELIVERY_FAILED
+EMAIL_AUTH_NOT_CONFIGURED
+```
+
+安全边界：
+
+- API 不返回验证码、code hash、SMTP 凭据、邮箱 HMAC secret；
+- 完整邮箱仅用于当前请求和实际发信，不作为长期身份字段落库；
+- 反向代理仅在 loopback 来源时被 Express 信任，用于可靠取得客户端 IP；
+- 未配置 `EMAIL_HMAC_SECRET` 或 SMTP 时，服务仍可正常启动，但相关接口返回安全的 503；
+- SMTP 支持隐式 TLS（常见 465）及 STARTTLS（常见 587）。
