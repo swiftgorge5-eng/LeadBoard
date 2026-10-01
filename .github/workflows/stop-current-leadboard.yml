@@ -1,0 +1,38 @@
+name: Stop Current LeadBoard
+
+on:
+  push:
+    paths:
+      - ".github/workflows/stop-current-leadboard.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  stop:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 5
+    steps:
+      - name: Stop current LeadBoard service
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Stopping leadboard.service only; PostgreSQL and nginx are left running."
+          sudo -n systemctl stop leadboard.service
+          sleep 2
+          if systemctl is-active --quiet leadboard.service; then
+            echo "leadboard.service is still active"
+            exit 1
+          fi
+          echo "leadboard.service is stopped."
+          echo
+          echo "Port 3000 check:"
+          if ss -lnt | awk '{print $4}' | grep -qE '(^|:)3000$'; then
+            echo "Port 3000 is still listening"
+            exit 1
+          else
+            echo "Port 3000 is closed."
+          fi
+          echo
+          echo "Nginx response after backend stop:"
+          curl -sS -o /dev/null -w 'HTTP %{http_code}\n' --max-time 5 http://127.0.0.1/ || true
