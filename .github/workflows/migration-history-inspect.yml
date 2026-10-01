@@ -1,0 +1,25 @@
+name: LeadBoard Migration History Inspect
+
+on:
+  push:
+    paths:
+      - ".github/workflows/migration-history-inspect.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 5
+    steps:
+      - name: Inspect deployed migration files
+        shell: bash
+        run: |
+          set -euo pipefail
+          current="$(systemctl show -p WorkingDirectory --value leadboard.service)"
+          echo "Current release: $current"
+          echo "=== migration files ==="
+          find "$current/db/migrations" -maxdepth 1 -type f -printf '%f\n' | sort
+          echo "=== activity query indexes migration ==="
+          cat "$current/db/migrations/1769558400000_activity_query_indexes.js" 2>/dev/null || true
