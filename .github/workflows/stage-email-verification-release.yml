@@ -1,6 +1,6 @@
 name: Stage Email Verification Release
 
-# Re-staged after production migration-order compatibility fix.
+# Re-staged after restoring the production migration history.
 
 on:
   push:
