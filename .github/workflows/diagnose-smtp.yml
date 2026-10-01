@@ -1,0 +1,79 @@
+name: Diagnose SMTP
+
+on:
+  push:
+    paths:
+      - ".github/workflows/diagnose-smtp.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 5
+    steps:
+      - name: Check LeadBoard SMTP configuration and authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== Service ==="
+          sudo systemctl is-active leadboard.service || true
+
+          echo "=== Config presence (values hidden) ==="
+          sudo /usr/local/bin/leadboard-node --env-file=/etc/leadboard/leadboard.env - <<'NODE'
+          const keys = ["SMTP_HOST","SMTP_PORT","SMTP_SECURE","SMTP_STARTTLS","SMTP_USER","SMTP_PASSWORD","MAIL_FROM","EMAIL_HMAC_SECRET"];
+          for (const k of keys) {
+            const v = process.env[k] ?? "";
+            console.log(k + ": " + (v ? "set, length=" + v.length : "MISSING"));
+          }
+          NODE
+
+          echo "=== SMTP TLS + AUTH test (no email will be sent) ==="
+          sudo /usr/local/bin/leadboard-node --env-file=/etc/leadboard/leadboard.env - <<'NODE'
+          const tls = require("node:tls");
+          const host = process.env.SMTP_HOST;
+          const port = Number(process.env.SMTP_PORT || "465");
+          const user = process.env.SMTP_USER || "";
+          const pass = process.env.SMTP_PASSWORD || "";
+          const socket = tls.connect({host, port, servername: host, minVersion:"TLSv1.2"});
+          let buf = "";
+          const replies = [];
+          let current = [];
+          let code = null;
+          const waiters = [];
+          function push(r){ const w=waiters.shift(); if(w) w(r); else replies.push(r); }
+          socket.on("data", chunk => {
+            buf += chunk.toString("utf8");
+            while(true){
+              const i = buf.indexOf("\n");
+              if(i < 0) break;
+              const line = buf.slice(0,i+1).replace(/\r?\n$/,"");
+              buf = buf.slice(i+1);
+              const m = /^(\d{3})([ -])(.*)$/.exec(line);
+              if(!m) continue;
+              if(code===null) code=m[1];
+              current.push(line);
+              if(m[2]===" " && m[1]===code){
+                push({code:Number(m[1]), text:current.join(" | ")});
+                current=[]; code=null;
+              }
+            }
+          });
+          function next(){ if(replies.length) return Promise.resolve(replies.shift()); return new Promise((res,rej)=>{ const t=setTimeout(()=>rej(new Error("timeout")),10000); waiters.push(r=>{clearTimeout(t);res(r);}); });}
+          async function cmd(s){ socket.write(s+"\r\n"); return await next(); }
+          (async()=>{
+            await new Promise((res,rej)=>{socket.once("secureConnect",res);socket.once("error",rej)});
+            let r=await next(); console.log("banner:",r.code);
+            r=await cmd("EHLO leadboard"); console.log("ehlo:",r.code);
+            r=await cmd("AUTH LOGIN"); console.log("auth-login:",r.code);
+            r=await cmd(Buffer.from(user).toString("base64")); console.log("auth-user:",r.code);
+            r=await cmd(Buffer.from(pass).toString("base64"));
+            console.log("auth-password:",r.code, r.text.replace(/[A-Za-z0-9+\/=]{20,}/g,"[redacted]"));
+            socket.end();
+            process.exit(r.code===235 ? 0 : 2);
+          })().catch(e=>{console.error("smtp-test-error:",e.message);socket.destroy();process.exit(3);});
+          NODE
+
+          echo "=== Recent LeadBoard logs ==="
+          sudo journalctl -u leadboard.service -n 80 --no-pager | tail -80
