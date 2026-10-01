@@ -1,0 +1,39 @@
+name: LeadBoard Release Layout Inspect
+
+on:
+  push:
+    paths:
+      - ".github/workflows/release-layout-inspect.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 10
+    steps:
+      - name: Inspect current deployment layout
+        shell: bash
+        run: |
+          set +e
+          echo "=== /opt/leadboard tree ==="
+          sudo -n find /opt/leadboard -maxdepth 3 -mindepth 1 -printf '%M %u:%g %p -> %l\n' 2>/dev/null | head -300
+          echo
+          echo "=== current release ==="
+          current="$(systemctl show -p WorkingDirectory --value leadboard.service)"
+          echo "WorkingDirectory=$current"
+          sudo -n sh -c 'cd "$1" && find . -maxdepth 2 -type f \( -name package.json -o -name "*.mjs" -o -name "*.sh" \) -print | head -120' sh "$current"
+          echo
+          echo "=== root package.json ==="
+          sudo -n cat "$current/package.json" 2>/dev/null || true
+          echo
+          echo "=== service ==="
+          sudo -n systemctl cat leadboard.service
+          echo
+          echo "=== node wrapper metadata ==="
+          sudo -n ls -l /usr/local/bin/leadboard-node
+          sudo -n file /usr/local/bin/leadboard-node 2>/dev/null || true
+          echo
+          echo "=== environment variable names only ==="
+          sudo -n awk -F= '/^[A-Za-z_][A-Za-z0-9_]*=/{print $1}' /etc/leadboard/leadboard.env 2>/dev/null || true
