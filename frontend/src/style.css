@@ -126,9 +126,8 @@ a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible
 
 .hero-card {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr);
-  min-height: 348px;
+  display: block;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid #e6e5f4;
   border-radius: 24px;
@@ -137,7 +136,7 @@ a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible
     linear-gradient(145deg, #ffffff 0%, #fbfaff 68%, #f3f2ff 100%);
   box-shadow: 0 18px 50px rgba(67, 62, 121, .06);
 }
-.hero-copy { position: relative; z-index: 2; padding: 52px 52px 46px; }
+.hero-copy { position: relative; z-index: 2; max-width: 820px; padding: 52px 52px 46px; }
 .hero-badge {
   display: inline-flex;
   align-items: center;
@@ -181,42 +180,6 @@ a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible
 .button-primary { background: linear-gradient(135deg, #756ae4, #5c52d4); color: #fff; box-shadow: 0 10px 22px rgba(93, 82, 216, .20); }
 .button-primary:hover { transform: translateY(-1px); }
 .button-secondary { border: 1px solid #e2e2eb; background: #fff; color: #4c4f64; }
-.hero-visual { position: relative; min-height: 310px; }
-.hero-logo {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  display: grid;
-  place-items: center;
-  width: 118px;
-  height: 118px;
-  transform: translate(-50%, -50%);
-  border-radius: 34px;
-  background: linear-gradient(145deg, #857af2, #5e54d7);
-  color: #fff;
-  font-size: 34px;
-  font-weight: 850;
-  letter-spacing: -.05em;
-  box-shadow: 0 28px 60px rgba(90, 78, 211, .24);
-}
-.orbit { position: absolute; top: 50%; left: 50%; border: 1px solid rgba(113, 103, 232, .15); border-radius: 50%; transform: translate(-50%, -50%); }
-.orbit-one { width: 220px; height: 220px; }
-.orbit-two { width: 310px; height: 310px; }
-.floating-chip {
-  position: absolute;
-  padding: 8px 12px;
-  border: 1px solid rgba(227, 225, 245, .95);
-  border-radius: 12px;
-  background: rgba(255,255,255,.88);
-  color: #6d7083;
-  font-size: 11px;
-  font-weight: 700;
-  box-shadow: 0 10px 24px rgba(72, 68, 119, .08);
-}
-.chip-one { top: 23%; left: 5%; }
-.chip-two { top: 65%; right: 3%; }
-.chip-three { bottom: 16%; left: 14%; }
-
 .demo-notice { display: inline-block; margin-top: 16px !important; padding: 9px 12px; border-radius: 8px; background: #fff5d9; color: #80642c !important; font-size: 12px !important; }
 
 .filter-card {
@@ -668,9 +631,7 @@ footer {
   .workspace { display: block; }
   .sidebar { display: none; }
   .content-shell { padding: 22px 18px 0; }
-  .hero-card { grid-template-columns: 1fr; }
   .hero-copy { padding: 38px 28px 28px; }
-  .hero-visual { min-height: 230px; }
   .filter-card { align-items: stretch; flex-direction: column; }
   .filter-controls { justify-content: stretch; }
   .filter-controls label { flex: 1 1 160px; }
@@ -694,11 +655,6 @@ footer {
   .hero-card { border-radius: 18px; }
   .hero-copy { padding: 30px 20px 20px; }
   .hero-copy h1, .join-copy h1 { font-size: 40px; }
-  .hero-visual { min-height: 195px; }
-  .hero-logo { width: 92px; height: 92px; border-radius: 26px; font-size: 28px; }
-  .orbit-one { width: 160px; height: 160px; }
-  .orbit-two { width: 220px; height: 220px; }
-  .floating-chip { font-size: 9px; }
   .metric-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
   .metric-card { min-height: 128px; padding: 18px; border-radius: 15px; }
   .metric-card strong { font-size: 32px; }
