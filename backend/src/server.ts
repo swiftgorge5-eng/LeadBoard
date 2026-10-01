@@ -1,5 +1,6 @@
 import { createApiRouter } from "./api/router.js";
 import { createApp } from "./app.js";
+import { createEmailVerificationServiceFromEnv } from "./auth/index.js";
 import { loadConfig } from "./config/index.js";
 import { getDbPool } from "./db/index.js";
 import { createDefaultSyncCoordinator, startSyncScheduler } from "./sync/index.js";
@@ -7,7 +8,11 @@ import { createDefaultSyncCoordinator, startSyncScheduler } from "./sync/index.j
 try {
   const config = loadConfig();
   const coordinator = createDefaultSyncCoordinator(config);
-  const apiRouter = createApiRouter({ getSyncStatus: () => coordinator.getSyncStatus() });
+  const emailVerification = createEmailVerificationServiceFromEnv();
+  const apiRouter = createApiRouter({
+    getSyncStatus: () => coordinator.getSyncStatus(),
+    emailVerification,
+  });
   const scheduler = startSyncScheduler(coordinator, config.ingestionCronSchedule);
   const server = createApp({ apiRouter }).listen(config.port, () => {
     console.info(`LeadBoard backend listening on port ${config.port}`);

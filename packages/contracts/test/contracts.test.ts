@@ -39,6 +39,10 @@ const fixtures = [
   [c.RepositoryStatsResponseSchema, { items: [{ ...repositoryStat, contributors: 2 }] }],
   [c.GroupsResponseSchema, { items: [{ name: "systems" }] }],
   [c.ContributorLeaderboardResponseSchema, { range: "30d", metric: "total", items: [rank] }],
+  [c.EmailCodeRequestSchema, { email: "student@fudan.edu.cn" }],
+  [c.EmailCodeVerifyRequestSchema, { email: "student@fudan.edu.cn", code: "012345" }],
+  [c.EmailCodeSendResponseSchema, { sent: true, retryAfterSeconds: 60, expiresInSeconds: 600 }],
+  [c.EmailCodeVerifyResponseSchema, { verified: true }],
   [c.ApiErrorResponseSchema, { error: { code: "INTERNAL_ERROR", message: "Request failed" } }],
 ] as const;
 

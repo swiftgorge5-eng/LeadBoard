@@ -1,6 +1,10 @@
 import {
   ContributorDetailSchema,
   ContributorLeaderboardResponseSchema,
+  EmailCodeRequestSchema,
+  EmailCodeSendResponseSchema,
+  EmailCodeVerifyRequestSchema,
+  EmailCodeVerifyResponseSchema,
   GroupsResponseSchema,
   LeaderboardMetricSchema,
   OrganizationSummaryResponseSchema,
@@ -18,6 +22,11 @@ import {
 } from "@leadboard/contracts";
 import { Router, type Response } from "express";
 import { AnalyticsService } from "../analytics/index.js";
+import {
+  EmailAuthError,
+  UnavailableEmailVerificationApi,
+  type EmailVerificationApi,
+} from "../auth/index.js";
 import { GitHubClientError } from "../github/client.js";
 import { getSyncStatus as defaultGetSyncStatus, SyncAlreadyRunningError } from "../sync/index.js";
 
@@ -32,6 +41,7 @@ interface AnalyticsApi {
 export interface ApiDependencies {
   analytics: AnalyticsApi;
   getSyncStatus(): Promise<SyncStatus>;
+  emailVerification: EmailVerificationApi;
 }
 
 function sendError(res: Response, status: number, code: string, message: string): void {
@@ -97,6 +107,10 @@ function parseGroup(value: unknown, res: Response): string | undefined | null {
 }
 
 function handleServiceError(error: unknown, res: Response): boolean {
+  if (error instanceof EmailAuthError) {
+    sendError(res, error.status, error.code, error.message);
+    return true;
+  }
   if (error instanceof SyncAlreadyRunningError) {
     sendError(res, 409, "SYNC_ALREADY_RUNNING", "A synchronization run is already active");
     return true;
@@ -118,7 +132,37 @@ function handleServiceError(error: unknown, res: Response): boolean {
 export function createApiRouter(dependencies: Partial<ApiDependencies> = {}): Router {
   const analytics = dependencies.analytics ?? new AnalyticsService();
   const getSyncStatus = dependencies.getSyncStatus ?? defaultGetSyncStatus;
+  const emailVerification = dependencies.emailVerification ?? new UnavailableEmailVerificationApi();
   const router = Router();
+
+  router.post("/auth/email/send-code", async (req, res, next) => {
+    const parsed = EmailCodeRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      sendError(res, 400, "INVALID_EMAIL", "请输入有效邮箱地址");
+      return;
+    }
+    try {
+      const requesterIp = req.ip ?? req.socket.remoteAddress ?? "unknown";
+      const result = await emailVerification.sendCode(parsed.data.email, requesterIp);
+      res.status(202).json(EmailCodeSendResponseSchema.parse(result));
+    } catch (error) {
+      if (!handleServiceError(error, res)) next(error);
+    }
+  });
+
+  router.post("/auth/email/verify", async (req, res, next) => {
+    const parsed = EmailCodeVerifyRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      sendError(res, 400, "INVALID_VERIFICATION_CODE", "邮箱或验证码格式不正确");
+      return;
+    }
+    try {
+      const result = await emailVerification.verifyCode(parsed.data.email, parsed.data.code);
+      res.json(EmailCodeVerifyResponseSchema.parse(result));
+    } catch (error) {
+      if (!handleServiceError(error, res)) next(error);
+    }
+  });
 
   router.get("/organization/summary", async (req, res, next) => {
     const range = parseRange(req.query.range, res);

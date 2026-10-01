@@ -280,3 +280,87 @@ total   = commits + prs + issues
 - 新增 fact table / aggregation layer；
 - 不修改已有 Commit / PR / Issue 的历史语义；
 - 分数由独立 scoring layer 产生，不覆盖原始事实。
+
+
+## 14. 复旦身份验证（个人贡献榜前置）
+
+个人贡献榜使用独立的身份层，不把 GitHub contributor 直接当作复旦成员。
+
+### members
+
+```text
+id                      BIGSERIAL PK
+email_fingerprint       TEXT UNIQUE NOT NULL
+email_domain            TEXT NOT NULL
+verification_status     TEXT NOT NULL DEFAULT 'verified'
+verified_at             TIMESTAMPTZ NOT NULL
+last_reverified_at      TIMESTAMPTZ NOT NULL
+created_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+```
+
+`email_fingerprint` 使用服务器密钥对规范化邮箱执行
+`HMAC-SHA256("email:" + normalized_email)`。数据库不需要长期保存完整邮箱。
+
+当前 `verification_status`：
+
+```text
+verified | revoked
+```
+
+邮箱验证仅证明“复旦身份邮箱可用”，当前不宣称严格的在校学生学籍认证。
+
+### email_verification_challenges
+
+```text
+id                         BIGSERIAL PK
+email_fingerprint          TEXT NOT NULL
+email_domain               TEXT NOT NULL
+requester_ip_fingerprint   TEXT NOT NULL
+code_hash                  TEXT NOT NULL
+code_salt                  TEXT NOT NULL
+expires_at                 TIMESTAMPTZ NOT NULL
+attempt_count              INTEGER NOT NULL DEFAULT 0
+used_at                    TIMESTAMPTZ
+delivery_status            TEXT NOT NULL DEFAULT 'pending'
+sent_at                    TIMESTAMPTZ
+created_at                 TIMESTAMPTZ NOT NULL DEFAULT now()
+```
+
+安全规则：
+
+- 验证码为密码学随机的 6 位数字；
+- 10 分钟过期；
+- 同邮箱 60 秒内禁止重发；
+- 每小时同邮箱最多 5 次成功/进行中的发送；
+- 每小时同来源 IP 最多 20 次成功/进行中的发送；
+- 单验证码最多 5 次错误尝试；
+- 成功验证后立即设置 `used_at`，禁止重复使用；
+- 验证码使用带随机 salt 的 scrypt 派生值保存，不保存明文；
+- 来源 IP 与邮箱一样只保存 HMAC fingerprint，不保存原始值；
+- 邮件发送失败的 challenge 标记为 `failed`，不占用后续发送频率额度。
+
+### github_accounts（下一阶段预留）
+
+```text
+github_id       BIGINT PK
+login           TEXT NOT NULL
+avatar_url      TEXT
+created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+```
+
+GitHub 身份使用稳定的 `github_id`，不使用可修改的 login 作为永久主键。
+
+### member_github_accounts（下一阶段预留）
+
+```text
+member_id       BIGINT NOT NULL FK -> members.id
+github_id       BIGINT NOT NULL FK -> github_accounts.github_id
+linked_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+is_primary      BOOLEAN NOT NULL DEFAULT FALSE
+
+PRIMARY KEY(member_id, github_id)
+```
+
+一个成员可以绑定多个 GitHub 账号；同一成员最多一个 `is_primary=true` 账号。

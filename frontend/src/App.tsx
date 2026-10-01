@@ -4,6 +4,7 @@ import type { LeadBoardApiClient } from "./api/client";
 import { ContributorDetailPage } from "./pages/ContributorDetailPage";
 import { ContributorLeaderboardPage } from "./pages/ContributorLeaderboardPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { IdentityVerificationPage } from "./pages/IdentityVerificationPage";
 import { fetchHealth } from "./health";
 
 export function App({ api, isMock = false }: { api: LeadBoardApiClient; isMock?: boolean }) {
@@ -25,6 +26,7 @@ export function App({ api, isMock = false }: { api: LeadBoardApiClient; isMock?:
         <nav className="site-nav" aria-label="主导航">
           <Link to="/dashboard">Dashboard</Link>
           <Link to="/contributors">贡献者</Link>
+          <Link to="/join">加入贡献榜</Link>
         </nav>
         <span className={`status status-${status}`} role="status">
           <span aria-hidden="true" className="dot" />
@@ -37,6 +39,7 @@ export function App({ api, isMock = false }: { api: LeadBoardApiClient; isMock?:
         <Route path="/dashboard" element={<DashboardPage api={api} isMock={isMock} />} />
         <Route path="/contributors" element={<ContributorLeaderboardPage api={api} />} />
         <Route path="/contributors/:username" element={<ContributorDetailPage api={api} />} />
+        <Route path="/join" element={<IdentityVerificationPage />} />
         <Route path="*" element={<section className="not-found"><h1>页面不存在</h1><Link to="/dashboard">返回 Dashboard</Link></section>} />
       </Routes>
 

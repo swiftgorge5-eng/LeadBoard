@@ -55,6 +55,27 @@ const tables = {
     repositories_ok: required("integer", "0"), repositories_failed: required("integer", "0"),
     error_message: optional("text"), created_at: required(timestamp, "now()"),
   },
+  members: {
+    id: id(), email_fingerprint: required("text"), email_domain: required("text"),
+    verification_status: required("text", "'verified'::text"), verified_at: required(timestamp),
+    last_reverified_at: required(timestamp), created_at: required(timestamp, "now()"),
+    updated_at: required(timestamp, "now()"),
+  },
+  email_verification_challenges: {
+    id: id(), email_fingerprint: required("text"), email_domain: required("text"),
+    requester_ip_fingerprint: required("text"), code_hash: required("text"), code_salt: required("text"),
+    expires_at: required(timestamp), attempt_count: required("integer", "0"), used_at: optional(timestamp),
+    delivery_status: required("text", "'pending'::text"), sent_at: optional(timestamp),
+    created_at: required(timestamp, "now()"),
+  },
+  github_accounts: {
+    github_id: required("bigint"), login: required("text"), avatar_url: optional("text"),
+    created_at: required(timestamp, "now()"), updated_at: required(timestamp, "now()"),
+  },
+  member_github_accounts: {
+    member_id: required("bigint"), github_id: required("bigint"),
+    linked_at: required(timestamp, "now()"), is_primary: required("boolean", "false"),
+  },
 };
 
 const foreignKeys = [
@@ -65,11 +86,14 @@ const foreignKeys = [
   ["pull_requests", "contributor_id", "contributors", "id"],
   ["issues", "repository_id", "repositories", "id"],
   ["issues", "contributor_id", "contributors", "id"],
+  ["member_github_accounts", "member_id", "members", "id"],
+  ["member_github_accounts", "github_id", "github_accounts", "github_id"],
 ];
 const uniques = [
   ["groups", "name"], ["repositories", "github_id"], ["repositories", "node_id"],
   ["contributors", "github_id"], ["commits", "repository_id", "sha"],
   ["pull_requests", "repository_id", "github_id"], ["issues", "repository_id", "github_id"],
+  ["members", "email_fingerprint"],
 ];
 const indexes = {
   repositories_tracked_idx: ["repositories", "tracked"],
@@ -84,6 +108,23 @@ const indexes = {
   issues_repository_time_idx: ["issues", "repository_id", "created_at"],
   issues_contributor_time_idx: ["issues", "contributor_id", "created_at"],
   sync_runs_status_finished_idx: ["sync_runs", "status", "finished_at"],
+  email_verification_email_time_idx: ["email_verification_challenges", "email_fingerprint", "created_at"],
+  email_verification_ip_time_idx: ["email_verification_challenges", "requester_ip_fingerprint", "created_at"],
+  member_github_primary_idx: ["member_github_accounts", "member_id"],
+};
+
+const primaryKeys = {
+  groups: ["id"],
+  repositories: ["id"],
+  contributors: ["id"],
+  commits: ["id"],
+  pull_requests: ["id"],
+  issues: ["id"],
+  sync_runs: ["id"],
+  members: ["id"],
+  email_verification_challenges: ["id"],
+  github_accounts: ["github_id"],
+  member_github_accounts: ["member_id", "github_id"],
 };
 
 const pool = new pg.Pool({ connectionString: databaseUrl });
@@ -123,8 +164,10 @@ try {
   for (const [table, column, target, targetColumn] of foreignKeys) {
     if (!constraints.some(c => c.contype === "f" && c.table_name === table && c.referenced_table === target && c.columns.join() === column && c.referenced_columns.join() === targetColumn)) problems.push(`missing FK ${table}.${column} -> ${target}.${targetColumn}`);
   }
-  for (const table of Object.keys(tables)) {
-    if (!constraints.some(c => c.contype === "p" && c.table_name === table && c.columns.join() === "id")) problems.push(`missing primary key ${table}(id)`);
+  for (const [table, columns] of Object.entries(primaryKeys)) {
+    if (!constraints.some(c => c.contype === "p" && c.table_name === table && c.columns.join() === columns.join())) {
+      problems.push(`missing primary key ${table}(${columns.join(", ")})`);
+    }
   }
   for (const [table, ...columns] of uniques) {
     if (!constraints.some(c => c.contype === "u" && c.table_name === table && c.columns.join() === columns.join())) problems.push(`missing UNIQUE ${table}(${columns.join(", ")})`);
@@ -139,10 +182,11 @@ try {
     if (!actualIndexes.some(index => index.index_name === name && index.table_name === table && index.columns.join() === columns.join())) problems.push(`missing index ${name} on ${table}(${columns.join(", ")})`);
   }
   if (!actualIndexes.some(index => index.index_name === "sync_runs_status_finished_idx" && index.definition.includes("(status, finished_at DESC)"))) problems.push("sync_runs_status_finished_idx must sort finished_at DESC");
+  if (!actualIndexes.some(index => index.index_name === "member_github_primary_idx" && /WHERE is_primary/.test(index.definition))) problems.push("member_github_primary_idx must be partial on is_primary");
   if (problems.length) {
     for (const problem of problems) console.error(problem);
     process.exitCode = 1;
-  } else console.info("Database schema verified: 7 tables, columns, foreign keys, unique constraints, and indexes.");
+  } else console.info("Database schema verified: 11 tables, columns, foreign keys, unique constraints, and indexes.");
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
