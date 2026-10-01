@@ -198,8 +198,18 @@ export const EmailCodeSendResponseSchema = z.object({
 });
 export type EmailCodeSendResponse = z.infer<typeof EmailCodeSendResponseSchema>;
 
+export const GitHubLinkInfoSchema = z.discriminatedUnion("available", [
+  z.object({ available: z.literal(false) }),
+  z.object({
+    available: z.literal(true),
+    authorizeUrl: webUrl,
+  }),
+]);
+export type GitHubLinkInfo = z.infer<typeof GitHubLinkInfoSchema>;
+
 export const EmailCodeVerifyResponseSchema = z.object({
   verified: z.literal(true),
+  githubLink: GitHubLinkInfoSchema,
 });
 export type EmailCodeVerifyResponse = z.infer<typeof EmailCodeVerifyResponseSchema>;
 
