@@ -203,6 +203,19 @@ export const EmailCodeVerifyResponseSchema = z.object({
 });
 export type EmailCodeVerifyResponse = z.infer<typeof EmailCodeVerifyResponseSchema>;
 
+export const ProjectProposalRequestSchema = z.object({
+  projectUrl: z.url({ protocol: /^https?$/ }).max(500),
+  labName: z.string().trim().min(2).max(120),
+  notes: z.string().trim().min(10).max(1200),
+});
+export type ProjectProposalRequest = z.infer<typeof ProjectProposalRequestSchema>;
+
+export const ProjectProposalResponseSchema = z.object({
+  submitted: z.literal(true),
+  id: positive,
+});
+export type ProjectProposalResponse = z.infer<typeof ProjectProposalResponseSchema>;
+
 
 export const SyncConfigSchema = AppConfigSchema.pick({
   githubOrg: true, groupProperty: true, ingestionCronSchedule: true,
