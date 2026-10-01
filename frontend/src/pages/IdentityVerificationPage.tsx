@@ -119,89 +119,103 @@ export function IdentityVerificationPage() {
   }
 
   return (
-    <section className="verify-shell">
-      <div className="verify-copy">
-        <p className="eyebrow">Fudan identity</p>
-        <h1>加入复旦开源贡献榜</h1>
-        <p className="description">
-          先验证你的复旦邮箱。我们只保存不可逆的邮箱指纹，不把完整邮箱作为排行榜身份长期保存。
-        </p>
-        <div className="privacy-note">
-          <strong>当前阶段</strong>
-          <span>完成复旦身份验证。GitHub OAuth 与全站个人贡献统计将在下一阶段接入。</span>
-        </div>
-      </div>
-
-      <div className="verify-card">
-        {verified ? (
-          <div className="verified-state" role="status">
-            <span className="verified-mark" aria-hidden="true">✓</span>
-            <h2>验证完成</h2>
-            <p>这个复旦身份已经可以用于后续 GitHub 账号绑定。</p>
+    <div className="page-canvas">
+      <section className="join-hero">
+        <div className="join-copy">
+          <span className="hero-badge">FUDAN IDENTITY</span>
+          <h1>把你的开源贡献<br />带回校园。</h1>
+          <p>验证复旦邮箱后，你的身份可以用于后续 GitHub 账号绑定与贡献归属。</p>
+          <div className="join-steps" aria-label="加入贡献榜步骤">
+            <div className="join-step join-step-active"><span>1</span><div><strong>验证邮箱</strong><small>确认复旦身份</small></div></div>
+            <div className="join-step"><span>2</span><div><strong>绑定 GitHub</strong><small>下一阶段开放</small></div></div>
+            <div className="join-step"><span>3</span><div><strong>进入贡献榜</strong><small>持续记录开源成长</small></div></div>
           </div>
-        ) : (
-          <>
-            <form onSubmit={sendCode}>
-              <label className="form-field">
-                <span>复旦邮箱</span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="name@fudan.edu.cn"
-                  autoComplete="email"
-                  required
-                  disabled={busy || sent}
-                />
-              </label>
-              <button className="primary-button" type="submit" disabled={busy || cooldown > 0 || sent}>
-                {busy && !sent ? "正在发送…" : cooldown > 0 ? `${cooldown} 秒后可重发` : sent ? "验证码已发送" : "发送验证码"}
-              </button>
-            </form>
+          <div className="privacy-card">
+            <span className="privacy-icon" aria-hidden="true">◇</span>
+            <div><strong>隐私设计</strong><p>我们只保存不可逆的邮箱指纹，不把完整邮箱作为排行榜身份长期保存。</p></div>
+          </div>
+        </div>
 
-            {sent && (
-              <form className="verification-form" onSubmit={verify}>
+        <div className="verify-card">
+          <div className="verify-card-head">
+            <span className="verify-icon" aria-hidden="true">✦</span>
+            <div><p>加入 LeadBoard</p><h2>{verified ? "身份验证完成" : sent ? "输入邮箱验证码" : "验证复旦邮箱"}</h2></div>
+          </div>
+
+          {verified ? (
+            <div className="verified-state" role="status">
+              <span className="verified-mark" aria-hidden="true">✓</span>
+              <h2>验证完成</h2>
+              <p>这个复旦身份已经可以用于后续 GitHub 账号绑定。</p>
+              <div className="success-band">欢迎加入 LeadBoard · 下一步功能即将开放</div>
+            </div>
+          ) : (
+            <>
+              <form onSubmit={sendCode}>
                 <label className="form-field">
-                  <span>6 位验证码</span>
+                  <span>复旦邮箱</span>
                   <input
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    pattern="[0-9]{6}"
-                    maxLength={6}
-                    value={code}
-                    onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                    placeholder="000000"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="name@fudan.edu.cn"
+                    autoComplete="email"
                     required
-                    autoFocus
+                    disabled={busy || sent}
                   />
+                  <small>支持 fudan.edu.cn 及其子域邮箱</small>
                 </label>
-                <button className="primary-button" type="submit" disabled={busy || code.length !== 6}>
-                  {busy ? "正在验证…" : "验证身份"}
-                </button>
-                <button
-                  className="text-button"
-                  type="button"
-                  disabled={busy || cooldown > 0}
-                  onClick={() => {
-                    setSent(false);
-                    setCode("");
-                    setNotice(null);
-                  }}
-                >
-                  {cooldown > 0 ? `${cooldown} 秒后可重新发送` : "更换邮箱 / 重新发送"}
+                <button className="primary-button" type="submit" disabled={busy || cooldown > 0 || sent}>
+                  {busy && !sent ? "正在发送…" : cooldown > 0 ? `${cooldown} 秒后可重发` : sent ? "验证码已发送" : "发送验证码"}
                 </button>
               </form>
-            )}
 
-            {notice && (
-              <p className={`verify-notice verify-notice-${notice.tone}`} role="status">
-                {notice.text}
-              </p>
-            )}
-          </>
-        )}
-      </div>
-    </section>
+              {sent && (
+                <form className="verification-form" onSubmit={verify}>
+                  <label className="form-field">
+                    <span>6 位验证码</span>
+                    <input
+                      className="code-input"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      pattern="[0-9]{6}"
+                      maxLength={6}
+                      value={code}
+                      onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="000000"
+                      required
+                      autoFocus
+                    />
+                    <small>验证码 10 分钟内有效</small>
+                  </label>
+                  <button className="primary-button" type="submit" disabled={busy || code.length !== 6}>
+                    {busy ? "正在验证…" : "验证身份"}
+                  </button>
+                  <button
+                    className="text-button"
+                    type="button"
+                    disabled={busy || cooldown > 0}
+                    onClick={() => {
+                      setSent(false);
+                      setCode("");
+                      setNotice(null);
+                    }}
+                  >
+                    {cooldown > 0 ? `${cooldown} 秒后可重新发送` : "更换邮箱 / 重新发送"}
+                  </button>
+                </form>
+              )}
+
+              {notice && (
+                <p className={`verify-notice verify-notice-${notice.tone}`} role="status">
+                  {notice.text}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </section>
+    </div>
   );
 }
