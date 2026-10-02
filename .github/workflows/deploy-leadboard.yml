@@ -1,5 +1,5 @@
 name: Deploy LeadBoard
-# UI hero cleanup deployment trigger
+# campus project board deployment trigger
 
 on:
   push:
