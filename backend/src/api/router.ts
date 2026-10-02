@@ -8,6 +8,8 @@ import {
   GroupsResponseSchema,
   LeaderboardMetricSchema,
   OrganizationSummaryResponseSchema,
+  ProjectProposalRequestSchema,
+  ProjectProposalResponseSchema,
   RepositoryStatsResponseSchema,
   TimeRangeSchema,
   type ApiErrorResponse,
@@ -28,6 +30,7 @@ import {
   type EmailVerificationApi,
 } from "../auth/index.js";
 import { GitHubClientError } from "../github/client.js";
+import { ProjectProposalService, type ProjectProposalApi } from "../projects/proposals.js";
 import { getSyncStatus as defaultGetSyncStatus, SyncAlreadyRunningError } from "../sync/index.js";
 
 interface AnalyticsApi {
@@ -42,6 +45,7 @@ export interface ApiDependencies {
   analytics: AnalyticsApi;
   getSyncStatus(): Promise<SyncStatus>;
   emailVerification: EmailVerificationApi;
+  projectProposals: ProjectProposalApi;
 }
 
 function sendError(res: Response, status: number, code: string, message: string): void {
@@ -133,6 +137,7 @@ export function createApiRouter(dependencies: Partial<ApiDependencies> = {}): Ro
   const analytics = dependencies.analytics ?? new AnalyticsService();
   const getSyncStatus = dependencies.getSyncStatus ?? defaultGetSyncStatus;
   const emailVerification = dependencies.emailVerification ?? new UnavailableEmailVerificationApi();
+  const projectProposals = dependencies.projectProposals ?? new ProjectProposalService();
   const router = Router();
 
   router.post("/auth/email/send-code", async (req, res, next) => {
@@ -159,6 +164,20 @@ export function createApiRouter(dependencies: Partial<ApiDependencies> = {}): Ro
     try {
       const result = await emailVerification.verifyCode(parsed.data.email, parsed.data.code);
       res.json(EmailCodeVerifyResponseSchema.parse(result));
+    } catch (error) {
+      if (!handleServiceError(error, res)) next(error);
+    }
+  });
+
+  router.post("/project-proposals", async (req, res, next) => {
+    const parsed = ProjectProposalRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      sendError(res, 400, "INVALID_PROJECT_PROPOSAL", "请把项目地址、实验室和补充说明填写完整");
+      return;
+    }
+    try {
+      const result = await projectProposals.submit(parsed.data);
+      res.status(201).json(ProjectProposalResponseSchema.parse(result));
     } catch (error) {
       if (!handleServiceError(error, res)) next(error);
     }
