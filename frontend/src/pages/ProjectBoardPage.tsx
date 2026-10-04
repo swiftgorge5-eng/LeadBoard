@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import {
   ApiErrorResponseSchema,
   ProjectProposalResponseSchema,
 } from "@leadboard/contracts";
+import { useLocalFavorites } from "../lib/favorites";
 
 const campusProjects = [
   {
@@ -45,7 +46,32 @@ export function ProjectBoardPage() {
   const [projectUrl, setProjectUrl] = useState("");
   const [labName, setLabName] = useState("");
   const [notes, setNotes] = useState("");
+  const [query, setQuery] = useState("");
+  const [tag, setTag] = useState("");
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [submit, setSubmit] = useState<SubmitState>({ status: "idle" });
+  const favorites = useLocalFavorites("projects");
+
+  const availableTags = useMemo(
+    () => [...new Set(campusProjects.flatMap((project) => [...project.tags]))].sort(),
+    [],
+  );
+
+  const visibleProjects = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return campusProjects.filter((project) => {
+      const matchesQuery = !normalized || [
+        project.name,
+        project.repo,
+        project.lab,
+        project.description,
+        ...project.tags,
+      ].some((value) => value.toLowerCase().includes(normalized));
+      const matchesTag = !tag || project.tags.includes(tag as never);
+      const matchesFavorite = !favoritesOnly || favorites.isFavorite(project.repo);
+      return matchesQuery && matchesTag && matchesFavorite;
+    });
+  }, [query, tag, favoritesOnly, favorites.items]);
 
   async function submitProposal(event: FormEvent) {
     event.preventDefault();
@@ -86,6 +112,29 @@ export function ProjectBoardPage() {
         </div>
       </section>
 
+      <section className="toolbar-card" aria-label="项目筛选">
+        <label className="search-box" aria-label="搜索项目">
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="搜索项目、实验室或技术方向"
+          />
+        </label>
+        <select className="toolbar-select" value={tag} onChange={(event) => setTag(event.target.value)} aria-label="按标签筛选">
+          <option value="">全部方向</option>
+          {availableTags.map((item) => <option value={item} key={item}>{item}</option>)}
+        </select>
+        <button
+          className="toolbar-button"
+          type="button"
+          aria-pressed={favoritesOnly}
+          onClick={() => setFavoritesOnly((value) => !value)}
+        >
+          {favoritesOnly ? "★ 只看收藏" : "☆ 只看收藏"}
+        </button>
+      </section>
+
       <section className="dashboard-content">
         <div className="section-title-row">
           <div>
@@ -96,28 +145,57 @@ export function ProjectBoardPage() {
           <span className="count-pill">{campusProjects.length} 个已核验项目</span>
         </div>
 
-        <div className="project-grid">
-          {campusProjects.map((project) => (
-            <article className="project-card" key={project.repo}>
-              <div className="project-card-head">
-                <div>
-                  <span className="project-lab">{project.lab}</span>
-                  <h2>{project.name}</h2>
-                  <code>{project.repo}</code>
-                </div>
-                <span className="verified-chip">✓ 已核验</span>
-              </div>
-              <p>{project.description}</p>
-              <div className="project-tags">
-                {project.tags.map((tag) => <span className="tag" key={tag}>{tag}</span>)}
-              </div>
-              <div className="project-links">
-                <a href={project.url} target="_blank" rel="noreferrer">打开项目 ↗</a>
-                <a href={project.labUrl} target="_blank" rel="noreferrer">查看实验室来源 ↗</a>
-              </div>
-            </article>
-          ))}
+        <div className="project-search-summary">
+          <span>当前显示 {visibleProjects.length} / {campusProjects.length} 个项目</span>
+          {(query || tag || favoritesOnly) && (
+            <button
+              className="text-button"
+              type="button"
+              onClick={() => { setQuery(""); setTag(""); setFavoritesOnly(false); }}
+            >
+              清除筛选
+            </button>
+          )}
         </div>
+
+        {visibleProjects.length === 0 ? (
+          <div className="empty-filter-state">没有匹配的项目。换个关键词，或者清除筛选再看看。</div>
+        ) : (
+          <div className="project-grid">
+            {visibleProjects.map((project) => (
+              <article className="project-card" key={project.repo}>
+                <div className="project-card-head">
+                  <div>
+                    <span className="project-lab">{project.lab}</span>
+                    <h2>{project.name}</h2>
+                    <code>{project.repo}</code>
+                  </div>
+                  <div className="project-card-actions">
+                    <button
+                      className="favorite-button"
+                      type="button"
+                      aria-label={favorites.isFavorite(project.repo) ? `取消收藏 ${project.name}` : `收藏 ${project.name}`}
+                      aria-pressed={favorites.isFavorite(project.repo)}
+                      onClick={() => favorites.toggle(project.repo)}
+                      title="收藏只保存在当前浏览器"
+                    >
+                      {favorites.isFavorite(project.repo) ? "★" : "☆"}
+                    </button>
+                    <span className="verified-chip">✓ 已核验</span>
+                  </div>
+                </div>
+                <p>{project.description}</p>
+                <div className="project-tags">
+                  {project.tags.map((item) => <span className="tag" key={item}>{item}</span>)}
+                </div>
+                <div className="project-links">
+                  <a href={project.url} target="_blank" rel="noreferrer">打开项目 ↗</a>
+                  <a href={project.labUrl} target="_blank" rel="noreferrer">查看实验室来源 ↗</a>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
 
         <section className="project-invite-card">
           <div className="project-invite-copy">
