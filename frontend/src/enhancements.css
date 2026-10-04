@@ -163,3 +163,18 @@
   .toolbar-select, .toolbar-button { flex: 1 1 auto; }
   .guide-step-card { grid-template-columns: 42px minmax(0,1fr); padding: 18px; }
 }
+
+.github-link-state { align-items: stretch; text-align: left; }
+.github-link-state .verified-mark { align-self: center; }
+.github-link-state > h2, .github-link-state > p { text-align: center; }
+.github-link-button {
+  width: 100%;
+  margin-top: 6px;
+  text-decoration: none;
+}
+.join-step-done > span {
+  border-color: #bfe1d6;
+  background: #eaf7f2;
+  color: #458f79;
+}
+.join-step-done strong { color: #4f6f65; }
