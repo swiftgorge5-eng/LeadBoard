@@ -67,7 +67,7 @@ export function ProjectBoardPage() {
         project.description,
         ...project.tags,
       ].some((value) => value.toLowerCase().includes(normalized));
-      const matchesTag = !tag || project.tags.includes(tag as never);
+      const matchesTag = !tag || project.tags.some((item) => item === tag);
       const matchesFavorite = !favoritesOnly || favorites.isFavorite(project.repo);
       return matchesQuery && matchesTag && matchesFavorite;
     });
