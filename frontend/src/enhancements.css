@@ -125,43 +125,13 @@
   font-weight: 720;
 }
 .profile-action-button[aria-pressed="true"] { border-color: #f0d795; background: #fff8e6; color: #a56e17; }
-.guide-hero { min-height: 280px; }
-.guide-hero > div { max-width: 780px; }
-.guide-layout {
-  display: grid;
-  grid-template-columns: minmax(0,1.5fr) minmax(280px,.7fr);
-  gap: 18px;
-}
-.guide-steps { display: grid; gap: 12px; }
-.guide-step-card {
-  display: grid;
-  grid-template-columns: 58px minmax(0,1fr);
-  gap: 16px;
-  padding: 22px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: #fff;
-}
-.guide-step-number { color: #8178de; font-size: 12px; font-weight: 850; letter-spacing: .08em; }
-.guide-step-card h2 { margin: 0; color: #3d4053; font-size: 17px; }
-.guide-step-card p { margin: 7px 0 0; color: #85889a; font-size: 11px; line-height: 1.72; }
-.guide-aside { display: grid; align-content: start; gap: 12px; }
-.guide-checklist { padding: 22px; }
-.guide-checklist h2 { margin: 0; color: #3d4053; font-size: 18px; }
-.guide-checklist ul { margin: 16px 0 0; padding-left: 18px; color: #7d8091; font-size: 11px; line-height: 1.9; }
-.guide-note { display: flex; gap: 12px; padding: 16px; border: 1px solid #e6e3fa; border-radius: 14px; background: linear-gradient(135deg,#f5f3ff,#fff); }
-.guide-note > span { color: #7066de; }
-.guide-note strong { color: #515469; font-size: 11px; }
-.guide-note p { margin: 4px 0 0; color: #9295a5; font-size: 10px; line-height: 1.6; }
 @media (max-width: 880px) {
-  .guide-layout { grid-template-columns: 1fr; }
   .ranking-row-with-favorite { grid-template-columns: 32px 46px minmax(0,1fr) 54px 36px 18px; }
   .ranking-row-with-favorite .ranking-metrics { display: none; }
 }
 @media (max-width: 620px) {
   .toolbar-card { align-items: stretch; }
   .toolbar-select, .toolbar-button { flex: 1 1 auto; }
-  .guide-step-card { grid-template-columns: 42px minmax(0,1fr); padding: 18px; }
 }
 
 .github-link-state { align-items: stretch; text-align: left; }
