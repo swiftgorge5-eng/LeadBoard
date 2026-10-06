@@ -2,8 +2,18 @@ name: Deploy LeadBoard
 # campus project board deployment trigger
 
 on:
+  workflow_dispatch:
   push:
+    branches:
+      - main
     paths:
+      - "backend/**"
+      - "frontend/**"
+      - "db/**"
+      - "packages/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
       - ".github/workflows/deploy-leadboard.yml"
 
 permissions:
