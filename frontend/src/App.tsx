@@ -6,6 +6,7 @@ import { ContributorLeaderboardPage } from "./pages/ContributorLeaderboardPage";
 import { ProjectBoardPage } from "./pages/ProjectBoardPage";
 import { IdentityVerificationPage } from "./pages/IdentityVerificationPage";
 import { fetchHealth } from "./health";
+import "./enhancements.css";
 
 function navClass({ isActive }: { isActive: boolean }) {
   return isActive ? "nav-link nav-link-active" : "nav-link";

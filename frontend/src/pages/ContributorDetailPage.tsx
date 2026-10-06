@@ -3,6 +3,7 @@ import { TimeRangeSchema, type ContributorDetail } from "@leadboard/contracts";
 import { Link, useParams } from "react-router";
 import type { LeadBoardApiClient } from "../api/client";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
+import { useLocalFavorites } from "../lib/favorites";
 import { useFilters } from "../state/filters";
 
 type State =
@@ -16,6 +17,8 @@ export function ContributorDetailPage({ api }: { api: LeadBoardApiClient }) {
   const { range, setRange } = useFilters();
   const [state, setState] = useState<State>({ status: "loading" });
   const [retry, setRetry] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const favorites = useLocalFavorites("contributors");
 
   useEffect(() => {
     let active = true;
@@ -33,6 +36,13 @@ export function ContributorDetailPage({ api }: { api: LeadBoardApiClient }) {
     return () => { active = false; };
   }, [api, username, range, retry]);
 
+  async function copyProfileLink() {
+    if (typeof window === "undefined" || !navigator.clipboard) return;
+    await navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
+
   return (
     <div className="page-canvas">
       <section className="profile-hero">
@@ -44,6 +54,29 @@ export function ContributorDetailPage({ api }: { api: LeadBoardApiClient }) {
           <span className="hero-badge">CONTRIBUTOR PROFILE</span>
           <h1>{username || "贡献者详情"}</h1>
           <p>从公开 GitHub 活动中汇总的个人贡献记录。</p>
+          {username && (
+            <div className="profile-actions">
+              <a
+                className="profile-action-link"
+                href={`https://github.com/${encodeURIComponent(username)}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                GitHub ↗
+              </a>
+              <button
+                className="profile-action-button"
+                type="button"
+                aria-pressed={favorites.isFavorite(username)}
+                onClick={() => favorites.toggle(username)}
+              >
+                {favorites.isFavorite(username) ? "★ 已收藏" : "☆ 收藏"}
+              </button>
+              <button className="profile-action-button" type="button" onClick={() => void copyProfileLink()}>
+                {copied ? "✓ 已复制" : "复制档案链接"}
+              </button>
+            </div>
+          )}
         </div>
         <label className="profile-range">时间范围
           <select value={range} onChange={(event) => setRange(TimeRangeSchema.parse(event.target.value))}>

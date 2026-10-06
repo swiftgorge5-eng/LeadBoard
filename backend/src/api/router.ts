@@ -26,8 +26,11 @@ import { Router, type Response } from "express";
 import { AnalyticsService } from "../analytics/index.js";
 import {
   EmailAuthError,
+  GitHubLinkError,
   UnavailableEmailVerificationApi,
+  UnavailableGitHubLinkApi,
   type EmailVerificationApi,
+  type GitHubLinkApi,
 } from "../auth/index.js";
 import { GitHubClientError } from "../github/client.js";
 import { ProjectProposalService, type ProjectProposalApi } from "../projects/proposals.js";
@@ -45,6 +48,7 @@ export interface ApiDependencies {
   analytics: AnalyticsApi;
   getSyncStatus(): Promise<SyncStatus>;
   emailVerification: EmailVerificationApi;
+  githubLink: GitHubLinkApi;
   projectProposals: ProjectProposalApi;
 }
 
@@ -111,7 +115,7 @@ function parseGroup(value: unknown, res: Response): string | undefined | null {
 }
 
 function handleServiceError(error: unknown, res: Response): boolean {
-  if (error instanceof EmailAuthError) {
+  if (error instanceof EmailAuthError || error instanceof GitHubLinkError) {
     sendError(res, error.status, error.code, error.message);
     return true;
   }
@@ -137,6 +141,7 @@ export function createApiRouter(dependencies: Partial<ApiDependencies> = {}): Ro
   const analytics = dependencies.analytics ?? new AnalyticsService();
   const getSyncStatus = dependencies.getSyncStatus ?? defaultGetSyncStatus;
   const emailVerification = dependencies.emailVerification ?? new UnavailableEmailVerificationApi();
+  const githubLink = dependencies.githubLink ?? new UnavailableGitHubLinkApi();
   const projectProposals = dependencies.projectProposals ?? new ProjectProposalService();
   const router = Router();
 
@@ -163,9 +168,42 @@ export function createApiRouter(dependencies: Partial<ApiDependencies> = {}): Ro
     }
     try {
       const result = await emailVerification.verifyCode(parsed.data.email, parsed.data.code);
-      res.json(EmailCodeVerifyResponseSchema.parse(result));
+      const link = await githubLink.createAuthorization(result.memberId);
+      res.json(EmailCodeVerifyResponseSchema.parse({
+        verified: true,
+        githubLink: link,
+      }));
     } catch (error) {
       if (!handleServiceError(error, res)) next(error);
+    }
+  });
+
+  router.get("/auth/github/callback", async (req, res, next) => {
+    const code = singleQuery(req.query.code);
+    const state = singleQuery(req.query.state);
+    const denied = singleQuery(req.query.error);
+    if (denied) {
+      res.redirect(303, "/join?github=error&reason=access_denied");
+      return;
+    }
+    if (!code || !state) {
+      res.redirect(303, "/join?github=error&reason=invalid_callback");
+      return;
+    }
+    try {
+      const result = await githubLink.completeAuthorization(code, state);
+      res.redirect(303, `/join?github=success&login=${encodeURIComponent(result.login)}`);
+    } catch (error) {
+      if (error instanceof GitHubLinkError) {
+        const reason = error.code === "GITHUB_ACCOUNT_ALREADY_LINKED"
+          ? "already_linked"
+          : error.code === "GITHUB_LINK_NOT_CONFIGURED"
+            ? "not_configured"
+            : "authorization_failed";
+        res.redirect(303, `/join?github=error&reason=${reason}`);
+        return;
+      }
+      next(error);
     }
   });
 
