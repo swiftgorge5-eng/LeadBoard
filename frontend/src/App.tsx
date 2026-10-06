@@ -5,7 +5,6 @@ import { ContributorDetailPage } from "./pages/ContributorDetailPage";
 import { ContributorLeaderboardPage } from "./pages/ContributorLeaderboardPage";
 import { ProjectBoardPage } from "./pages/ProjectBoardPage";
 import { IdentityVerificationPage } from "./pages/IdentityVerificationPage";
-import { OpenSourceGuidePage } from "./pages/OpenSourceGuidePage";
 import { fetchHealth } from "./health";
 import "./enhancements.css";
 
@@ -58,7 +57,6 @@ export function App({ api, isMock: _isMock = false }: { api: LeadBoardApiClient;
           <div className="side-section">
             <p className="side-label">社区</p>
             <NavLink className={navClass} to="/join"><span aria-hidden="true">✦</span> 加入贡献榜</NavLink>
-            <NavLink className={navClass} to="/guide"><span aria-hidden="true">⌁</span> 开源指南</NavLink>
             <a className="nav-link" href="https://github.com/swiftgorge5-eng/LeadBoard" target="_blank" rel="noreferrer">
               <span aria-hidden="true">↗</span> 项目仓库
             </a>
@@ -79,7 +77,6 @@ export function App({ api, isMock: _isMock = false }: { api: LeadBoardApiClient;
             <Route path="/contributors" element={<ContributorLeaderboardPage api={api} />} />
             <Route path="/contributors/:username" element={<ContributorDetailPage api={api} />} />
             <Route path="/join" element={<IdentityVerificationPage />} />
-            <Route path="/guide" element={<OpenSourceGuidePage />} />
             <Route path="*" element={<section className="not-found"><h1>页面不存在</h1><Link to="/projects">返回校内开源项目</Link></section>} />
           </Routes>
 
