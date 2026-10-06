@@ -78,7 +78,7 @@ describe("Fudan email verification integration", () => {
     expect(challenge.rows[0].delivery_status).toBe("sent");
 
     await expect(auth.verifyCode("student@m.fudan.edu.cn", "123456"))
-      .resolves.toEqual({ verified: true });
+      .resolves.toEqual({ verified: true, memberId: "1" });
 
     const member = await pool.query(
       "SELECT email_domain, verification_status, count(*) OVER ()::int AS total FROM members",
